@@ -50,6 +50,9 @@ jobs:
         password: ${{ secrets.GITHUB_TOKEN }}
 
     - name: Build and push Docker image
+      id: build_push
+      env:
+        FSW_IMG_BASE: ${{ env.FSW_IMG_BASE }}
       run: |
         FSW_IMG_TAG=fsw_$(echo ${GITHUB_REF#refs/heads/} | sed 's/\//_/g')
         FSW_IMG=${{ env.FSW_IMG_BASE }}:$FSW_IMG_TAG

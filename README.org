@@ -6,8 +6,8 @@ This project demonstrates an [[https://nasa.github.io/fprime/][fprime]] powered 
 *** Dependencies
 The project is containerized with Docker, ensuring compatibility across various environments including Ubuntu and WSL (Windows Subsystem for Linux). Before proceeding, ensure you have the following dependencies installed:
 
-- Git (For cloning the repository): [[https://git-scm.com/book/en/v2/Getting-Started-Installing-Git][Installation Guide]]
-- Docker (For running the software) : [[https://docs.docker.com/engine/install/][Installation Guide]]
+- [[https://git-scm.com/book/en/v2/Getting-Started-Installing-Git][Git]] (For cloning the repository)
+- [[https://docs.docker.com/engine/install/][Docker]] (For running the software)
 
 [[https://docs.docker.com/engine/install/linux-postinstall/][Ensure Docker is configured to run without ~sudo~ in your environment]]
 *** Setting up the repo
@@ -29,7 +29,7 @@ Commands are summarized as such:
 skinparam actorStyle awesome
 actor User
 
-rectangle "run.sh Script" {
+rectangle "" {
   [Docker Build]
   [Project Build]
   [Container Inspection]
@@ -126,8 +126,6 @@ One use case is building and running the deployment, this can be done like so (n
 
 This then provides a web based ui that can be viewed by visiting http://127.0.0.1:5000/#Channels on your preferred web browser.
 
-[[file:.org_out/GDS_Screenshot.png][GDS Screenshot]]
-
 *Note* this example runs a standard version of ~fprime-gds~ and deploys it locally.
 More information about the Web UI can be found [[https://nasa.github.io/fprime/UsersGuide/gds/gds-introduction.html][here]].
 *** Additional Tips
@@ -177,4 +175,4 @@ IN_FLIGHT --> IDLE: TERMINATE
 #+END_SRC
 
 #+RESULTS:
-[[file:.org_out/FlightSM.png]]
+[[file:.org_out/FlightSM.svg]]
