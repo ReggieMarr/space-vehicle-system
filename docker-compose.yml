@@ -67,7 +67,7 @@ services:
       timeout: 3s
       retries: 25
       start_period: 5s
-    depends_on:
-      gds:
-        condition: service_healthy
-        restart: true
+    # depends_on:
+    #   gds:
+    #     condition: service_healthy
+    #     restart: true
