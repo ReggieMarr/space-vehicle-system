@@ -95,22 +95,23 @@ module FlightComputer {
       # Block driver
       blockDrv.CycleOut -> rateGroupDriverComp.CycleIn
 
-      # Rate group 1 (100Hz)
+      # Rate group 1 (1Hz)
       rateGroupDriverComp.CycleOut[Ports_RateGroups.rateGroup1] -> rateGroup1Comp.CycleIn
+      rateGroup1Comp.RateGroupMemberOut[0] -> gdsChanTlm.Run
+      rateGroup1Comp.RateGroupMemberOut[1] -> blockDrv.Sched
+      rateGroup1Comp.RateGroupMemberOut[2] -> commsBufferManager.schedIn
+      rateGroup1Comp.RateGroupMemberOut[3] -> flightSequencer.run
 
-      # Rate group 2 (1Hz)
+      # Rate group 2 (1/2Hz)
       rateGroupDriverComp.CycleOut[Ports_RateGroups.rateGroup2] -> rateGroup2Comp.CycleIn
       rateGroup2Comp.RateGroupMemberOut[0] -> cmdSeq.schedIn
-      rateGroup2Comp.RateGroupMemberOut[1] -> gdsChanTlm.Run
-      rateGroup2Comp.RateGroupMemberOut[2] -> fileDownlink.Run
-      rateGroup2Comp.RateGroupMemberOut[3] -> systemResources.run
-      rateGroup2Comp.RateGroupMemberOut[4] -> blockDrv.Sched
-      rateGroup2Comp.RateGroupMemberOut[5] -> commsBufferManager.schedIn
-      rateGroup2Comp.RateGroupMemberOut[6] -> $health.Run
+      rateGroup2Comp.RateGroupMemberOut[1] -> flightSequencer.run
+      rateGroup2Comp.RateGroupMemberOut[2] -> $health.Run
 
-      # Rate group 3 (10Hz)
+      # Rate group 3 (1/4Hz)
       rateGroupDriverComp.CycleOut[Ports_RateGroups.rateGroup3] -> rateGroup3Comp.CycleIn
-      rateGroup1Comp.RateGroupMemberOut[0] -> flightSequencer.run
+      rateGroup3Comp.RateGroupMemberOut[0] -> systemResources.run
+      rateGroup3Comp.RateGroupMemberOut[1] -> fileDownlink.Run
     }
 
     # NOTE this is not really used atm and is here more to match closer to the Ref
