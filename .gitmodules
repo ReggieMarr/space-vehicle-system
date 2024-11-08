@@ -3,4 +3,4 @@
 	url = git@github.com:ReggieMarr/fprime.git
 [submodule "fprime-gds"]
 	path = fprime-gds
-	url = git@github.com:nasa/fprime-gds.git
+	url = git@github.com:ReggieMarr/fprime-gds.git
