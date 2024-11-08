@@ -37,7 +37,7 @@ services:
           - HOST_GID=${HOST_GID:-1000}
           - progress=plain
     image: $FSW_IMG
-    working_dir: ${BIN_DIR}
+    working_dir: ${DEPLOYMENT_ROOT}
     environment:
         - GEVENT_SUPPORT=True
         - HOST_UID=${HOST_UID:-1000}

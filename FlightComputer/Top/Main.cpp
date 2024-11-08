@@ -124,12 +124,12 @@ int main(int argc, char* argv[]) {
     FlightComputer::TopologyState state(hostname, uplink_port, downlink_port);
     (void) printf("Setting up sw runtime\n");
     FlightComputer::setupTopology(state);
-    FlightComputer::startSimulatedCycle(Fw::Time(0, 10000));  // Program loop cycling rate groups at 1Hz
+    FlightComputer::startSimulatedCycle(Fw::TimeInterval(1, 0));  // Program loop cycling rate groups at 1Hz
     FlightComputer::teardownTopology(state);
 
     // Give time for threads to exit
     (void) printf("Waiting for threads...\n");
-    Os::Task::delay(Fw::Time(1, 0));
+    Os::Task::delay(Fw::TimeInterval(1, 0));
 
     (void) printf("Exiting...\n");
 

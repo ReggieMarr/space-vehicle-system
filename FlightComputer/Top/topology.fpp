@@ -11,8 +11,9 @@ module FlightComputer {
     }
 
     enum Ports_StaticMemory {
-      gdsDownlink
+      downlink
       uplink
+      accumulator
     }
 
   topology FlightComputer {
@@ -27,14 +28,16 @@ module FlightComputer {
     instance cmdDisp
     instance cmdSeq
     instance comm
-    instance gdsDownlink
+    instance deframer
     instance eventLogger
     instance fatalAdapter
     instance fatalHandler
     instance fileDownlink
     instance fileManager
     instance fileUplink
-    instance fileUplinkBufferManager
+    instance commsBufferManager
+    instance frameAccumulator
+    instance framer
     instance posixTime
     instance pingRcvr
     instance prmDb
@@ -42,12 +45,10 @@ module FlightComputer {
     instance rateGroup2Comp
     instance rateGroup3Comp
     instance rateGroupDriverComp
-    instance staticMemory
+    instance uplinkRouter
     instance textLogger
-    instance uplink
     instance systemResources
     instance flightSequencer
-    instance version
 
     # ----------------------------------------------------------------------
     # Pattern graph specifiers
@@ -73,15 +74,15 @@ module FlightComputer {
 
     connections GDSDownlink {
 
-      gdsChanTlm.PktSend -> gdsDownlink.comIn
-      eventLogger.PktSend -> gdsDownlink.comIn
+      gdsChanTlm.PktSend -> framer.comIn
+      eventLogger.PktSend -> framer.comIn
+      fileDownlink.bufferSendOut -> framer.bufferIn
 
-      gdsDownlink.framedAllocate -> staticMemory.bufferAllocate[Ports_StaticMemory.gdsDownlink]
-      gdsDownlink.framedOut -> comm.$send
-      comm.deallocate -> staticMemory.bufferDeallocate[Ports_StaticMemory.gdsDownlink]
+      framer.framedAllocate -> commsBufferManager.bufferGetCallee
+      framer.framedOut -> comm.$send
+      framer.bufferDeallocate -> fileDownlink.bufferReturn
 
-      fileDownlink.bufferSendOut -> gdsDownlink.bufferIn
-      gdsDownlink.bufferDeallocate -> fileDownlink.bufferReturn
+      comm.deallocate -> commsBufferManager.bufferSendIn
 
     }
 
@@ -104,7 +105,7 @@ module FlightComputer {
       rateGroup2Comp.RateGroupMemberOut[2] -> fileDownlink.Run
       rateGroup2Comp.RateGroupMemberOut[3] -> systemResources.run
       rateGroup2Comp.RateGroupMemberOut[4] -> blockDrv.Sched
-      rateGroup2Comp.RateGroupMemberOut[5] -> fileUplinkBufferManager.schedIn
+      rateGroup2Comp.RateGroupMemberOut[5] -> commsBufferManager.schedIn
       rateGroup2Comp.RateGroupMemberOut[6] -> $health.Run
 
       # Rate group 3 (10Hz)
@@ -112,19 +113,30 @@ module FlightComputer {
       rateGroup1Comp.RateGroupMemberOut[0] -> flightSequencer.run
     }
 
+    # NOTE this is not really used atm and is here more to match closer to the Ref
+    connections Sequencer {
+      cmdSeq.comCmdOut -> cmdDisp.seqCmdBuff
+      cmdDisp.seqCmdStatus -> cmdSeq.cmdResponseIn
+    }
+
     connections Uplink {
 
-      comm.allocate -> staticMemory.bufferAllocate[Ports_StaticMemory.uplink]
-      comm.$recv -> uplink.framedIn
-      uplink.framedDeallocate -> staticMemory.bufferDeallocate[Ports_StaticMemory.uplink]
+      comm.allocate -> commsBufferManager.bufferGetCallee
+      comm.$recv -> frameAccumulator.dataIn
 
-      uplink.comOut -> cmdDisp.seqCmdBuff
-      cmdDisp.seqCmdStatus -> uplink.cmdResponseIn
+      frameAccumulator.frameOut -> deframer.framedIn
+      frameAccumulator.frameAllocate -> commsBufferManager.bufferGetCallee
+      frameAccumulator.dataDeallocate -> commsBufferManager.bufferSendIn
+      deframer.deframedOut -> uplinkRouter.dataIn
 
-      uplink.bufferAllocate -> fileUplinkBufferManager.bufferGetCallee
-      uplink.bufferOut -> fileUplink.bufferSendIn
-      uplink.bufferDeallocate -> fileUplinkBufferManager.bufferSendIn
-      fileUplink.bufferSendOut -> fileUplinkBufferManager.bufferSendIn
+      uplinkRouter.commandOut -> cmdDisp.seqCmdBuff
+      uplinkRouter.fileOut -> fileUplink.bufferSendIn
+      uplinkRouter.bufferDeallocate -> commsBufferManager.bufferSendIn
+
+      cmdDisp.seqCmdStatus -> uplinkRouter.cmdResponseIn
+
+      fileUplink.bufferSendOut -> commsBufferManager.bufferSendIn
     }
+
   }
 }

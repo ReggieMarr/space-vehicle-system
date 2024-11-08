@@ -67,7 +67,7 @@ void teardownTopology(const TopologyState& state);
  * Note: projects should replace this with a component that produces an output port call at the appropriate frequency.
  *
  */
-void startSimulatedCycle(Fw::Time interval);
+void startSimulatedCycle(Fw::TimeInterval interval);
 
 /**
  * \brief stop the simulated cycle started by startSimulatedCycle

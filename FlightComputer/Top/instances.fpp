@@ -93,32 +93,30 @@ module FlightComputer {
 
   instance comm: Drv.TcpClient base id 0x4000
 
-  instance gdsDownlink: Svc.Framer base id 0x4100
+  instance framer: Svc.Framer base id 0x4100
 
   instance fatalAdapter: Svc.AssertFatalAdapter base id 0x4200
 
   instance fatalHandler: Svc.FatalHandler base id 0x4300
 
-  instance fileUplinkBufferManager: Svc.BufferManager base id 0x4400
+  instance commsBufferManager: Svc.BufferManager base id 0x4400
 
   instance posixTime: Svc.PosixTime base id 0x4500
 
   instance rateGroupDriverComp: Svc.RateGroupDriver base id 0x4600
 
-  instance staticMemory: Svc.StaticMemory base id 0x4800
-
   instance textLogger: Svc.PassiveTextLogger base id 0x4900
 
-  instance uplink: Svc.Deframer base id 0x4A00
+  instance systemResources: Svc.SystemResources base id 0x4A00
 
-  instance systemResources: Svc.SystemResources base id 0x4B00
+  instance frameAccumulator: Svc.FrameAccumulator base id 0x4C00
 
-  instance lightDownlink: Svc.Framer base id 0x4D00
+  instance deframer: Svc.Deframer base id 0x4D00
 
-  instance flightSequencer: FlightComputer.FlightSequencer base id 0x4E00 \
+  instance uplinkRouter: Svc.Router base id 0x4E00
+
+  instance flightSequencer: FlightComputer.FlightSequencer base id 0x4F00 \
     queue size Default.queueSize \
     stack size Default.stackSize \
     priority 59
-
-  instance version: Svc.Version base id 0x5100
 }
