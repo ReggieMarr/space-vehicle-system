@@ -28,7 +28,8 @@ module FlightComputer {
     instance cmdDisp
     instance cmdSeq
     instance comm
-    instance deframer
+    instance dataLinkDeframer
+    instance packetDeframer
     instance eventLogger
     instance fatalAdapter
     instance fatalHandler
@@ -37,7 +38,8 @@ module FlightComputer {
     instance fileUplink
     instance commsBufferManager
     instance frameAccumulator
-    instance framer
+    instance dataLinkFramer
+    instance packetFramer
     instance posixTime
     instance pingRcvr
     instance prmDb
@@ -74,13 +76,18 @@ module FlightComputer {
 
     connections GDSDownlink {
 
-      gdsChanTlm.PktSend -> framer.comIn
-      eventLogger.PktSend -> framer.comIn
-      fileDownlink.bufferSendOut -> framer.bufferIn
+      gdsChanTlm.PktSend -> packetFramer.comIn
+      eventLogger.PktSend -> packetFramer.comIn
+      fileDownlink.bufferSendOut -> packetFramer.bufferIn
 
-      framer.framedAllocate -> commsBufferManager.bufferGetCallee
-      framer.framedOut -> comm.$send
-      framer.bufferDeallocate -> fileDownlink.bufferReturn
+      packetFramer.framedAllocate -> commsBufferManager.bufferGetCallee
+      packetFramer.bufferDeallocate -> fileDownlink.bufferReturn
+
+      dataLinkFramer.bufferSendOut -> packetFramer.bufferIn
+      dataLinkFramer.framedAllocate -> commsBufferManager.bufferGetCallee
+      dataLinkFramer.framedOut -> comm.$send
+      # This doesn't exist yet but something like this
+      # packetFramer.bufferDeallocate -> packetFramer.bufferReturn
 
       comm.deallocate -> commsBufferManager.bufferSendIn
 
@@ -125,10 +132,14 @@ module FlightComputer {
       comm.allocate -> commsBufferManager.bufferGetCallee
       comm.$recv -> frameAccumulator.dataIn
 
-      frameAccumulator.frameOut -> deframer.framedIn
+      frameAccumulator.frameOut -> dataLinkDeframer.framedIn
       frameAccumulator.frameAllocate -> commsBufferManager.bufferGetCallee
       frameAccumulator.dataDeallocate -> commsBufferManager.bufferSendIn
-      deframer.deframedOut -> uplinkRouter.dataIn
+      # NOTE not sure if we should actually send this to the router
+      # mostly likely that's what we'd do since it'd help with multiprotocol support
+      dataLinkDeframer.deframedOut -> packetDeframer.framedIn
+      packetDeframer.deframedOut -> uplinkRouter.dataIn
+
 
       uplinkRouter.commandOut -> cmdDisp.seqCmdBuff
       uplinkRouter.fileOut -> fileUplink.bufferSendIn
