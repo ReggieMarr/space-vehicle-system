@@ -129,7 +129,7 @@ case $1 in
     [ "$CLEAN" -eq 1 ] && BUILD_CMD="fprime-util purge --force && fprime-util generate && $BUILD_CMD"
     [ "$AS_HOST" -eq 1 ] && eval "$BUILD_CMD" || run_docker_compose "fsw bash -c \"$BUILD_CMD\""
 
-    MOD_DICT_CMD="sed -i \"s|/fsw|${SCRIPT_DIR}/FlightComputer|g\" \"${SCRIPT_DIR}/FlightComputer/build-fprime-automatic-native/compile_commands.json\""
+    MOD_DICT_CMD="sed -i \"s|/MBSE_FSW|${SCRIPT_DIR}|g\" \"${SCRIPT_DIR}/FlightComputer/build-fprime-automatic-native/compile_commands.json\""
 
     exec_cmd "$MOD_DICT_CMD"
     ;;
