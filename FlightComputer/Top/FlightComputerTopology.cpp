@@ -29,7 +29,8 @@ Fw::MallocAllocator mallocator;
 
 // The reference topology uses the F´ packet protocol when communicating with the ground and therefore uses the F´
 // framing and deframing implementations.
-Svc::FprimeFraming gdsFraming;
+Svc::FprimeFraming fprimeFraming;
+Svc::FprimeDeframing fprimeDeframing;
 Svc::FrameDetectors::FprimeFrameDetector frameDetector;
 
 // The reference topology divides the incoming clock signal (1Hz) into sub-signals: 1Hz, 1/2Hz, and 1/4Hz and
@@ -116,7 +117,7 @@ void configureTopology() {
     commsBufferManager.setup(COMMS_BUFFER_MANAGER_ID, 0, mallocator, commsBuffMgrBins);
 
     // Framer and Deframer components need to be passed a protocol handler
-    framer.setup(gdsFraming);
+    framer.setup(fprimeFraming);
     frameAccumulator.configure(frameDetector, 1, mallocator, 2048);
 }
 

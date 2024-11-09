@@ -93,8 +93,9 @@ module FlightComputer {
 
   instance comm: Drv.TcpClient base id 0x4000
 
-  instance dataLinkFramer: Svc.Framer base id 0x4100
-  instance packetFramer: Svc.Framer base id 0x4100
+  # instance dataLinkFramer: Svc.Framer base id 0x4100
+  # instance packetFramer: Svc.Framer base id 0x4100
+  instance framer: Svc.Framer base id 0x4100
 
   instance fatalAdapter: Svc.AssertFatalAdapter base id 0x4200
 
@@ -112,8 +113,9 @@ module FlightComputer {
 
   instance frameAccumulator: Svc.FrameAccumulator base id 0x4C00
 
-  instance dataLinkDeframer: Svc.SpaceDataLinkDeframer base id 0x4D00
-  instance packetDeframer: Svc.SpacePacketDeframer base id 0x4D00
+  # instance dataLinkDeframer: Svc.SpaceDataLinkDeframer base id 0x4D00
+  # instance packetDeframer: Svc.SpacePacketDeframer base id 0x4D00
+  instance deframer: Svc.Deframer base id 0x4D00
 
   instance uplinkRouter: Svc.Router base id 0x4E00
 
@@ -121,4 +123,7 @@ module FlightComputer {
     queue size Default.queueSize \
     stack size Default.stackSize \
     priority 59
+
+  # instance sppDataLinkDeframer: Svc.SpaceDataLinkDeframer base id 0x5000
+  # instance sppDataLinkFramer: Svc.SpaceDataLinkFramer base id 0x5000
 }

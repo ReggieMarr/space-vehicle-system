@@ -28,8 +28,9 @@ module FlightComputer {
     instance cmdDisp
     instance cmdSeq
     instance comm
-    instance dataLinkDeframer
-    instance packetDeframer
+    # instance dataLinkDeframer
+    # instance packetDeframer
+    instance deframer
     instance eventLogger
     instance fatalAdapter
     instance fatalHandler
@@ -38,8 +39,9 @@ module FlightComputer {
     instance fileUplink
     instance commsBufferManager
     instance frameAccumulator
-    instance dataLinkFramer
-    instance packetFramer
+    # instance dataLinkFramer
+    # instance packetFramer
+    instance framer
     instance posixTime
     instance pingRcvr
     instance prmDb
@@ -51,6 +53,8 @@ module FlightComputer {
     instance textLogger
     instance systemResources
     instance flightSequencer
+    # instance sppDataLinkDeframer
+    # instance sppDataLinkFramer
 
     # ----------------------------------------------------------------------
     # Pattern graph specifiers
@@ -76,18 +80,26 @@ module FlightComputer {
 
     connections GDSDownlink {
 
-      gdsChanTlm.PktSend -> packetFramer.comIn
-      eventLogger.PktSend -> packetFramer.comIn
-      fileDownlink.bufferSendOut -> packetFramer.bufferIn
+      # gdsChanTlm.PktSend -> packetFramer.comIn
+      # eventLogger.PktSend -> packetFramer.comIn
+      # fileDownlink.bufferSendOut -> packetFramer.bufferIn
 
-      packetFramer.framedAllocate -> commsBufferManager.bufferGetCallee
-      packetFramer.bufferDeallocate -> fileDownlink.bufferReturn
+      # packetFramer.framedAllocate -> commsBufferManager.bufferGetCallee
+      # packetFramer.bufferDeallocate -> fileDownlink.bufferReturn
 
-      dataLinkFramer.bufferSendOut -> packetFramer.bufferIn
-      dataLinkFramer.framedAllocate -> commsBufferManager.bufferGetCallee
-      dataLinkFramer.framedOut -> comm.$send
-      # This doesn't exist yet but something like this
-      # packetFramer.bufferDeallocate -> packetFramer.bufferReturn
+      # dataLinkFramer.bufferSendOut -> packetFramer.bufferIn
+      # dataLinkFramer.framedAllocate -> commsBufferManager.bufferGetCallee
+      # dataLinkFramer.framedOut -> comm.$send
+      # # This doesn't exist yet but something like this
+      # # packetFramer.bufferDeallocate -> packetFramer.bufferReturn
+
+      gdsChanTlm.PktSend -> framer.comIn
+      eventLogger.PktSend -> framer.comIn
+      fileDownlink.bufferSendOut -> framer.bufferIn
+
+      framer.framedAllocate -> commsBufferManager.bufferGetCallee
+      framer.framedOut -> comm.$send
+      framer.bufferDeallocate -> fileDownlink.bufferReturn
 
       comm.deallocate -> commsBufferManager.bufferSendIn
 
@@ -132,13 +144,15 @@ module FlightComputer {
       comm.allocate -> commsBufferManager.bufferGetCallee
       comm.$recv -> frameAccumulator.dataIn
 
-      frameAccumulator.frameOut -> dataLinkDeframer.framedIn
+      frameAccumulator.frameOut -> deframer.framedIn
+      # frameAccumulator.frameOut -> dataLinkDeframer.framedIn
       frameAccumulator.frameAllocate -> commsBufferManager.bufferGetCallee
       frameAccumulator.dataDeallocate -> commsBufferManager.bufferSendIn
       # NOTE not sure if we should actually send this to the router
       # mostly likely that's what we'd do since it'd help with multiprotocol support
-      dataLinkDeframer.deframedOut -> packetDeframer.framedIn
-      packetDeframer.deframedOut -> uplinkRouter.dataIn
+      # dataLinkDeframer.deframedOut -> packetDeframer.framedIn
+      # packetDeframer.deframedOut -> uplinkRouter.dataIn
+      deframer.deframedOut -> uplinkRouter.dataIn
 
 
       uplinkRouter.commandOut -> cmdDisp.seqCmdBuff
