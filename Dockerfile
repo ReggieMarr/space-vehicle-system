@@ -99,3 +99,6 @@ USER user
 # This seems to be where fprime expects STARS to be
 RUN git clone https://github.com/JPLOpenSource/STARS.git ${HOME}/STARS
 RUN pip install -r ${HOME}/STARS/requirements.txt
+
+# CCSDS testing
+RUN pip install spacepackets-py
