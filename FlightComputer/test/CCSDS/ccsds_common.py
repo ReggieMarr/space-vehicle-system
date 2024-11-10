@@ -1,5 +1,5 @@
 import struct
-from spacepackets.spacepacket import (
+from spacepackets.ccsds.spacepacket import (
     SpacePacketHeader,
     PacketType,
     SequenceFlags,
