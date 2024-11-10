@@ -11,6 +11,7 @@
 #include <Os/Console.hpp>
 #include <Svc/FramingProtocol/FprimeProtocol.hpp>
 #include <Svc/FrameAccumulator/FrameDetector/FprimeFrameDetector.hpp>
+#include <Svc/FrameAccumulator/FrameDetector/CCSDSFrameDetector.hpp>
 
 // Used for 1Hz synthetic cycling
 #include <Os/Mutex.hpp>
@@ -30,8 +31,8 @@ Fw::MallocAllocator mallocator;
 // The reference topology uses the F´ packet protocol when communicating with the ground and therefore uses the F´
 // framing and deframing implementations.
 Svc::FprimeFraming fprimeFraming;
-Svc::FprimeDeframing fprimeDeframing;
-Svc::FrameDetectors::FprimeFrameDetector frameDetector;
+Svc::FrameDetectors::FprimeFrameDetector fprimeFrameDetector;
+Svc::FrameDetectors::CCSDSFrameDetector ccsdsFrameDetector;
 
 // The reference topology divides the incoming clock signal (1Hz) into sub-signals: 1Hz, 1/2Hz, and 1/4Hz and
 // zero offset for all the dividers
@@ -45,7 +46,7 @@ NATIVE_INT_TYPE rateGroup3Context[Svc::ActiveRateGroup::CONNECTION_COUNT_MAX] = 
 
 // A number of constants are needed for construction of the topology. These are specified here.
 enum TopologyConstants {
-    CMD_SEQ_BUFFER_SIZE = 5 * 1024,
+    CMD_SEQ_BUFFER_SIZE = 7 * 1024,
     FILE_DOWNLINK_TIMEOUT = 1000,
     FILE_DOWNLINK_COOLDOWN = 1000,
     FILE_DOWNLINK_CYCLE_TIME = 1000,
@@ -118,7 +119,9 @@ void configureTopology() {
 
     // Framer and Deframer components need to be passed a protocol handler
     framer.setup(fprimeFraming);
-    frameAccumulator.configure(frameDetector, 1, mallocator, 2048);
+    // This setups up deframing
+    fprimeFrameAccumulator.configure(fprimeFrameDetector, 1, mallocator, 2048);
+    ccsdsFrameAccumulator.configure(ccsdsFrameDetector, 2, mallocator, 2048);
 }
 
 // Public functions for use in main program are namespaced with deployment name FlightComputer
@@ -130,8 +133,11 @@ void setupTopology(const TopologyState& state) {
     if (state.hostName != nullptr && state.uplinkPort != 0) {
         Os::TaskString name("ReceiveTask");
         // Uplink is configured for receive so a socket task is started
-        comm.configure(state.hostName, state.uplinkPort);
-        comm.start(name, true, COMM_PRIORITY, Default::stackSize);
+        fprimeTcpLink.configure(state.hostName, state.uplinkPort);
+        fprimeTcpLink.start(name, true, COMM_PRIORITY, Default::stackSize);
+
+        ccsdsTcpLink.configure(state.hostName, state.uplinkPort+1);
+        ccsdsTcpLink.start(name, true, COMM_PRIORITY, Default::stackSize);
     }
 
 }
@@ -168,8 +174,8 @@ void teardownTopology(const TopologyState& state) {
     freeThreads(state);
 
     // Other task clean-up.
-    comm.stop();
-    (void)comm.join();
+    fprimeTcpLink.stop();
+    (void)fprimeTcpLink.join();
 
     // Resource deallocation
     cmdSeq.deallocateBuffer(mallocator);
