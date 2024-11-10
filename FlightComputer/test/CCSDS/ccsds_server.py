@@ -1,10 +1,8 @@
-#!/usr/bin/env python3
 import socket
 import threading
 import argparse
-import time
-import struct
-from ccsds_common import create_ccsds_tc_packet, frame_packet, parse_frame
+from spacepackets.ecss.tc import PusTc
+from spacepackets.ccsds.spacepacket import PacketType, SequenceFlags
 
 class TcpEndpoint:
     def __init__(self, host: str, port: int, is_server: bool):
@@ -27,7 +25,6 @@ class TcpEndpoint:
             self.socket.listen(1)
             print(f"Server listening on {self.host}:{self.port}")
 
-            # Accept connection
             self.peer_socket, addr = self.socket.accept()
             print(f"Connection established from {addr}")
         else:
@@ -36,7 +33,6 @@ class TcpEndpoint:
             self.peer_socket.connect((self.host, self.port))
             print("Connected to server")
 
-        # Start receive thread
         self.receive_thread = threading.Thread(target=self.receive_loop)
         self.receive_thread.start()
 
@@ -52,17 +48,17 @@ class TcpEndpoint:
 
                 buffer.extend(data)
 
-                # Try to parse complete frames
-                while len(buffer) >= 12:  # Minimum frame size
-                    success, payload = parse_frame(buffer)
-                    if success:
-                        print(f"Received payload: {payload.hex()}")
-                        # Remove processed frame
-                        frame_size = 8 + struct.unpack('>I', buffer[4:8])[0] + 4
-                        buffer = buffer[frame_size:]
-                    else:
-                        # If parse failed, remove one byte and try again
-                        buffer = buffer[1:]
+                # Try to parse TC packets
+                while buffer:
+                    try:
+                        tc = PusTc.unpack(buffer)
+                        print(f"Received TC: Service={tc.service}, Subservice={tc.subservice}, "
+                              f"APID={tc.apid}, Data={tc.app_data.hex()}")
+                        buffer = buffer[tc.packet_len:]
+                    except Exception as e:
+                        if len(buffer) < 6:  # Minimum CCSDS header size
+                            break
+                        buffer = buffer[1:]  # Remove one byte and try again
 
             except Exception as e:
                 if self.running:
@@ -91,6 +87,16 @@ class TcpEndpoint:
         if self.receive_thread:
             self.receive_thread.join()
         print("Endpoint stopped")
+
+def create_tc_packet(apid: int, service: int, subservice: int, data: bytes) -> bytes:
+    """Create a TC packet using PusTc."""
+    tc = PusTc(
+        service=service,
+        subservice=subservice,
+        apid=apid,
+        app_data=data
+    )
+    return tc.pack()
 
 def parse_args():
     parser = argparse.ArgumentParser(description='CCSDS TCP Endpoint')
@@ -127,11 +133,15 @@ def main():
                 try:
                     hex_data = cmd.split(' ')[1]
                     command_data = bytes.fromhex(hex_data)
-                    tc_packet = create_ccsds_tc_packet(apid=args.apid, user_data=command_data)
-                    framed_packet = frame_packet(tc_packet)
+                    packet = create_tc_packet(
+                        apid=args.apid,
+                        service=17,  # Example service
+                        subservice=1,  # Example subservice
+                        data=command_data
+                    )
 
-                    print(f"Sending framed packet (hex): {framed_packet.hex()}")
-                    if endpoint.send_packet(framed_packet):
+                    print(f"Sending TC packet: {packet.hex()}")
+                    if endpoint.send_packet(packet):
                         print("Packet sent successfully")
                     else:
                         print("Failed to send packet")
@@ -146,39 +156,4 @@ def main():
         endpoint.stop()
 
 if __name__ == "__main__":
-    """
-    To use these scripts:
-        To run as a server (waiting for F´ or another client):
-            python ccsds_tcp.py --mode server --port 50000 --apid 0x1FF
-
-        To run as a client (connecting to F´ or another server):
-            python ccsds_tcp.py --mode client --host localhost --port 50000 --apid 0x1FF
-
-    You can test the communication by:
-
-        Running two instances, one as server and one as client:
-            # Terminal 1
-            python ccsds_tcp.py --mode server --port 50000
-
-            # Terminal 2
-            python ccsds_tcp.py --mode client --port 50000
-
-        Using the interactive commands:
-            Enter command: status
-            Enter command: send 00010203
-            Enter command: quit
-
-    Both endpoints will:
-        + Display received packets
-        + Allow sending packets
-        + Handle connection state
-        + Properly frame and parse CCSDS packets
-
-    This setup allows you to:
-        Test communication between two instances
-        Act as either client or server when talking to F´
-        Debug packet formatting and parsing
-        Verify connection handling
-    """
-
     main()
