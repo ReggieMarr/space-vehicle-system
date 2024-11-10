@@ -51,10 +51,11 @@ module FlightComputer {
     instance flightSequencer
 
     instance sppDataLinkDeframer
-    instance ccsdsTcpLink
+    instance ccsdsLink
     instance ccsdsFrameAccumulator
     instance ccsdsUplinkRouter
     instance ccsdsNode
+    instance tcFramer
 
     # ----------------------------------------------------------------------
     # Pattern graph specifiers
@@ -145,10 +146,27 @@ module FlightComputer {
       fileUplink.bufferSendOut -> commsBufferManager.bufferSendIn
     }
 
-    connections ccsdsUplink {
+    connections ccsds {
 
-      ccsdsTcpLink.allocate -> commsBufferManager.bufferGetCallee
-      ccsdsTcpLink.$recv -> fprimeFrameAccumulator.dataIn
+      # ccsdsTcpLink.allocate -> commsBufferManager.bufferGetCallee
+      # ccsdsTcpLink.$recv -> fprimeFrameAccumulator.dataIn
+      # tcFramer.framedOut -> ccsdsTcpLink.$send
+      # ccsdsNode.allocate -> commsBufferManager.bufferGetCallee
+      # ccsdsNode.$recv -> ccsdsFrameAccumulator.dataIn
+
+      ccsdsNode.bufferSendOut -> tcFramer.bufferIn
+      ccsdsNode.PktSend -> tcFramer.comIn
+
+      tcFramer.framedAllocate -> commsBufferManager.bufferGetCallee
+      # tcFramer.bufferDeallocate -> ccsdsNode.bufferReturn
+      tcFramer.framedOut -> ccsdsLink.comDataIn
+      ccsdsLink.comStatus -> ccsdsNode.comStatusIn
+      ccsdsNode.drvReady -> ccsdsLink.drvConnected
+      # ccsdsNode.drvRecv -> ccsdsLink.drvDataIn
+      # ccsdsLink.drvDataOut -> ccsdsNode.drvSend
+      ccsdsLink.drvDataOut -> ccsdsLink.drvDataIn
+
+      ccsdsLink.comDataOut -> ccsdsFrameAccumulator.dataIn
 
       ccsdsFrameAccumulator.frameOut -> sppDataLinkDeframer.framedIn
       ccsdsFrameAccumulator.frameAllocate -> commsBufferManager.bufferGetCallee
@@ -161,7 +179,7 @@ module FlightComputer {
 
       ccsdsNode.seqCmdStatus -> ccsdsUplinkRouter.cmdResponseIn
 
-      ccsdsNode.bufferSendOut -> commsBufferManager.bufferSendIn
+      # ccsdsNode.bufferSendOut -> commsBufferManager.bufferSendIn
     }
 
   }
