@@ -27,9 +27,7 @@ module FlightComputer {
     instance gdsChanTlm
     instance cmdDisp
     instance cmdSeq
-    instance comm
-    # instance dataLinkDeframer
-    # instance packetDeframer
+    instance fprimeTcpLink
     instance deframer
     instance eventLogger
     instance fatalAdapter
@@ -38,9 +36,7 @@ module FlightComputer {
     instance fileManager
     instance fileUplink
     instance commsBufferManager
-    instance frameAccumulator
-    # instance dataLinkFramer
-    # instance packetFramer
+    instance fprimeFrameAccumulator
     instance framer
     instance posixTime
     instance pingRcvr
@@ -53,8 +49,12 @@ module FlightComputer {
     instance textLogger
     instance systemResources
     instance flightSequencer
-    # instance sppDataLinkDeframer
-    # instance sppDataLinkFramer
+
+    instance sppDataLinkDeframer
+    instance ccsdsTcpLink
+    instance ccsdsFrameAccumulator
+    instance ccsdsUplinkRouter
+    instance ccsdsNode
 
     # ----------------------------------------------------------------------
     # Pattern graph specifiers
@@ -80,28 +80,15 @@ module FlightComputer {
 
     connections GDSDownlink {
 
-      # gdsChanTlm.PktSend -> packetFramer.comIn
-      # eventLogger.PktSend -> packetFramer.comIn
-      # fileDownlink.bufferSendOut -> packetFramer.bufferIn
-
-      # packetFramer.framedAllocate -> commsBufferManager.bufferGetCallee
-      # packetFramer.bufferDeallocate -> fileDownlink.bufferReturn
-
-      # dataLinkFramer.bufferSendOut -> packetFramer.bufferIn
-      # dataLinkFramer.framedAllocate -> commsBufferManager.bufferGetCallee
-      # dataLinkFramer.framedOut -> comm.$send
-      # # This doesn't exist yet but something like this
-      # # packetFramer.bufferDeallocate -> packetFramer.bufferReturn
-
       gdsChanTlm.PktSend -> framer.comIn
       eventLogger.PktSend -> framer.comIn
       fileDownlink.bufferSendOut -> framer.bufferIn
 
       framer.framedAllocate -> commsBufferManager.bufferGetCallee
-      framer.framedOut -> comm.$send
+      framer.framedOut -> fprimeTcpLink.$send
       framer.bufferDeallocate -> fileDownlink.bufferReturn
 
-      comm.deallocate -> commsBufferManager.bufferSendIn
+      fprimeTcpLink.deallocate -> commsBufferManager.bufferSendIn
 
     }
 
@@ -139,21 +126,15 @@ module FlightComputer {
       cmdDisp.seqCmdStatus -> cmdSeq.cmdResponseIn
     }
 
-    connections Uplink {
+    connections fprimeUplink {
 
-      comm.allocate -> commsBufferManager.bufferGetCallee
-      comm.$recv -> frameAccumulator.dataIn
+      fprimeTcpLink.allocate -> commsBufferManager.bufferGetCallee
+      fprimeTcpLink.$recv -> fprimeFrameAccumulator.dataIn
 
-      frameAccumulator.frameOut -> deframer.framedIn
-      # frameAccumulator.frameOut -> dataLinkDeframer.framedIn
-      frameAccumulator.frameAllocate -> commsBufferManager.bufferGetCallee
-      frameAccumulator.dataDeallocate -> commsBufferManager.bufferSendIn
-      # NOTE not sure if we should actually send this to the router
-      # mostly likely that's what we'd do since it'd help with multiprotocol support
-      # dataLinkDeframer.deframedOut -> packetDeframer.framedIn
-      # packetDeframer.deframedOut -> uplinkRouter.dataIn
+      fprimeFrameAccumulator.frameOut -> deframer.framedIn
+      fprimeFrameAccumulator.frameAllocate -> commsBufferManager.bufferGetCallee
+      fprimeFrameAccumulator.dataDeallocate -> commsBufferManager.bufferSendIn
       deframer.deframedOut -> uplinkRouter.dataIn
-
 
       uplinkRouter.commandOut -> cmdDisp.seqCmdBuff
       uplinkRouter.fileOut -> fileUplink.bufferSendIn
@@ -162,6 +143,25 @@ module FlightComputer {
       cmdDisp.seqCmdStatus -> uplinkRouter.cmdResponseIn
 
       fileUplink.bufferSendOut -> commsBufferManager.bufferSendIn
+    }
+
+    connections ccsdsUplink {
+
+      ccsdsTcpLink.allocate -> commsBufferManager.bufferGetCallee
+      ccsdsTcpLink.$recv -> fprimeFrameAccumulator.dataIn
+
+      ccsdsFrameAccumulator.frameOut -> sppDataLinkDeframer.framedIn
+      ccsdsFrameAccumulator.frameAllocate -> commsBufferManager.bufferGetCallee
+      ccsdsFrameAccumulator.dataDeallocate -> commsBufferManager.bufferSendIn
+      sppDataLinkDeframer.deframedOut -> ccsdsUplinkRouter.dataIn
+
+      ccsdsUplinkRouter.commandOut -> ccsdsNode.seqCmdBuff
+      ccsdsUplinkRouter.fileOut -> ccsdsNode.bufferSendIn
+      ccsdsUplinkRouter.bufferDeallocate -> commsBufferManager.bufferSendIn
+
+      ccsdsNode.seqCmdStatus -> ccsdsUplinkRouter.cmdResponseIn
+
+      ccsdsNode.bufferSendOut -> commsBufferManager.bufferSendIn
     }
 
   }
