@@ -1,5 +1,6 @@
 #include "FlightComputer/Top/FppConstantsAc.hpp"
 #include "Fw/Logger/Logger.hpp"
+#include "Svc/FramingProtocol/CCSDSProtocol.hpp"
 
 // Provides access to autocoded functions
 #include <FlightComputer/Top/FlightComputerTopologyAc.hpp>
@@ -31,6 +32,7 @@ Fw::MallocAllocator mallocator;
 // The reference topology uses the F´ packet protocol when communicating with the ground and therefore uses the F´
 // framing and deframing implementations.
 Svc::FprimeFraming fprimeFraming;
+Svc::TCSpaceDataLinkFraming tcFraming;
 Svc::FrameDetectors::FprimeFrameDetector fprimeFrameDetector;
 Svc::FrameDetectors::CCSDSFrameDetector ccsdsFrameDetector;
 
@@ -119,6 +121,7 @@ void configureTopology() {
 
     // Framer and Deframer components need to be passed a protocol handler
     framer.setup(fprimeFraming);
+    tcFramer.setup(tcFraming);
     // This setups up deframing
     fprimeFrameAccumulator.configure(fprimeFrameDetector, 1, mallocator, 2048);
     ccsdsFrameAccumulator.configure(ccsdsFrameDetector, 2, mallocator, 2048);
@@ -136,8 +139,8 @@ void setupTopology(const TopologyState& state) {
         fprimeTcpLink.configure(state.hostName, state.uplinkPort);
         fprimeTcpLink.start(name, true, COMM_PRIORITY, Default::stackSize);
 
-        ccsdsTcpLink.configure(state.hostName, state.uplinkPort+1);
-        ccsdsTcpLink.start(name, true, COMM_PRIORITY, Default::stackSize);
+        // ccsdsTcpLink.configure(state.hostName, state.uplinkPort+1);
+        // ccsdsTcpLink.start(name, true, COMM_PRIORITY, Default::stackSize);
     }
 
 }

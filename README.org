@@ -176,3 +176,18 @@ IN_FLIGHT --> IDLE: TERMINATE
 
 #+RESULTS:
 [[file:.org_out/FlightSM.svg]]
+
+* F' Questions
+** General Overview
+1. What is are the overarching goals of F' ?
+   + What are the driving values/guiding principals that inform decisions about the underlying technologies or the frameworks architecture
+   + NOTE it seems like it's a fairly opinionated framework that drives the shape of projects that use it (almost like rust in that sense)
+2. What is the intended role of fpp vs c++ (or other implementation languages)
+   + NOTE Initially it seems to have focused on expressing the system's architecture (as in what components exist, what are their interfaces and how do they relate to one another) but with things like the state machine feature and
+** System Deployment Features
+1. OSAL (i.e. embedded support), model hub and
+
+* F' Answers
+** General Overview
+*** What is are the overarching goals of F' ?
+*** What is the intended role of fpp vs c++ (or other implementation languages)
