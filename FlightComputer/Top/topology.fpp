@@ -161,6 +161,10 @@ module FlightComputer {
       # tcFramer.bufferDeallocate -> ccsdsNode.bufferReturn
       tcFramer.framedOut -> ccsdsLink.comDataIn
       ccsdsLink.comStatus -> ccsdsNode.comStatusIn
+      ccsdsNode.drvReady -> ccsdsLink.drvConnected
+      ccsdsNode.drvRecv -> ccsdsLink.drvDataIn
+      ccsdsLink.drvDataOut -> ccsdsNode.drvSend
+
       ccsdsLink.comDataOut -> ccsdsFrameAccumulator.dataIn
 
       ccsdsFrameAccumulator.frameOut -> sppDataLinkDeframer.framedIn

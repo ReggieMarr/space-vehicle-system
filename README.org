@@ -184,10 +184,46 @@ IN_FLIGHT --> IDLE: TERMINATE
    + NOTE it seems like it's a fairly opinionated framework that drives the shape of projects that use it (almost like rust in that sense)
 2. What is the intended role of fpp vs c++ (or other implementation languages)
    + NOTE Initially it seems to have focused on expressing the system's architecture (as in what components exist, what are their interfaces and how do they relate to one another) but with things like the state machine feature and
-** System Deployment Features
-1. OSAL (i.e. embedded support), model hub and
+#** Distributed Deployment Features
+#1. OSAL (i.e. embedded support), model hub and sub-topologies
+#   + Is the idea that these would be used together for re-usable components with different driver implementations ?
+#   + Where might the fppm package manager fit in here ?
+#2. How might a distributed system express dependencies on both different functional components and different versions of them.
+** CCSDS
+# 1. What is driving this development ?
+2. How does it map onto the existing communication pipelines and what architectural changes might be needed going forwards.
+3. How does SPP fit in here ?
 
 * F' Answers
 ** General Overview
++ Jeffrey
+  manages tools and framework
++ Timothy
+  architect
++ Michael
+  cognizant engineer
+**** Collaboration
+mostly via github, the option for some mid tier private conversations can happen over email but we may require an nda on both sides for those types of conversations
+**** ivvf
+there is a group that has converted dictionaries
+**** ivvf
+there is a group that has converted dictionaries
 *** What is are the overarching goals of F' ?
++ Mission support at jpl
+  Trying to generalize on a solution that can work generally with other similar missions
+  Having to deal with more small missions with development overlap
++ Why open source ?
+  Collaborate so that we can engage a user community to get feedback and refine the design
++ Thinking behind the framework
+  heritage software didn't support for re-use, make something more nimble, very safe, minimal and modular.
+  CFS started around the same time.
+  Component arch was the chosen impl, fpp was developed for modeling and tooling.
+  The idea is to be able to generate unit testing in order to multiple the factor of a developer.
 *** What is the intended role of fpp vs c++ (or other implementation languages)
+** Distributed Deployment Features
+*** OSAL (i.e. embedded support), model hub and sub-topologies
+*** How might a distributed system express dependencies on both different functional components and different versions of them.
+** CCSDS
+*** What is driving this development ?
+*** How does it map onto the existing communication pipelines and what architectural changes might be needed going forwards.
+*** How does SPP fit in here ?

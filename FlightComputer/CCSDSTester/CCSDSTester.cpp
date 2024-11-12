@@ -19,7 +19,9 @@ namespace FlightComputer {
 // ----------------------------------------------------------------------
 
 CCSDSTester ::CCSDSTester(const char *const compName)
-    : CCSDSTesterComponentBase(compName) {}
+    : CCSDSTesterComponentBase(compName) {
+  this->drvReady_out(0);
+}
 
 CCSDSTester ::~CCSDSTester() {}
 
@@ -113,5 +115,9 @@ void CCSDSTester::MESSAGE_cmdHandler(const FwOpcodeType opCode,
 
   this->cmdResponse_out(opCode, cmdSeq, Fw::CmdResponse::OK);
 }
+
+  Drv::SendStatus CCSDSTester::drvSend_handler(FwIndexType, Fw::Buffer&) {
+
+  }
 
 } // namespace FlightComputer
