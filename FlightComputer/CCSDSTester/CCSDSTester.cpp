@@ -6,6 +6,7 @@
 
 #include "FlightComputer/CCSDSTester/CCSDSTester.hpp"
 #include "Drv/ByteStreamDriverModel/RecvStatusEnumAc.hpp"
+#include "Drv/ByteStreamDriverModel/SendStatusEnumAc.hpp"
 #include "Drv/Ip/IpSocket.hpp"
 #include "FpConfig.h"
 #include "FpConfig.hpp"
@@ -20,53 +21,61 @@ namespace FlightComputer {
 
 CCSDSTester ::CCSDSTester(const char *const compName)
     : CCSDSTesterComponentBase(compName) {
-  this->drvReady_out(0);
+
+  if (isConnected_drvReady_OutputPort(0)) {
+    this->drvReady_out(0);
+    isConnected = true;
+  } else {
+    Fw::Logger::log("Not Ready");
+  }
 }
 
 CCSDSTester ::~CCSDSTester() {}
 
-void CCSDSTester::seqCmdBuff_handler(NATIVE_INT_TYPE portNum, Fw::ComBuffer &data, U32 context) {
-    const FwSizeType size = data.getBuffLength();
-    Fw::Logger::log("Received command buffer of size %d with context %d\n", size, context);
+void CCSDSTester::seqCmdBuff_handler(NATIVE_INT_TYPE portNum,
+                                     Fw::ComBuffer &data, U32 context) {
+  const FwSizeType size = data.getBuffLength();
+  Fw::Logger::log("Received command buffer of size %d with context %d\n", size,
+                  context);
 
-    if (size < sizeof(FwOpcodeType)) {
-      Fw::Logger::log("Buff too small to decode\n");
+  if (size < sizeof(FwOpcodeType)) {
+    Fw::Logger::log("Buff too small to decode\n");
+  }
+
+  // Command opcode is typically the first field
+  // FwOpcodeType opcode;
+  FwOpcodeType opCode;
+  Fw::SerializeStatus stat = data.deserialize(opCode);
+
+  if (stat != Fw::FW_SERIALIZE_OK) {
+    Fw::Logger::log("ERROR: Failed to deserialize opcode\n");
+    return;
+  }
+
+  // Print opcode in hex
+  Fw::Logger::log("Command Opcode: 0x%x\n", opCode);
+
+  // Get remaining buffer for command arguments
+  U8 *buffPtr = data.getBuffAddr();
+
+  if (stat != Fw::FW_SERIALIZE_OK) {
+    Fw::Logger::log("ERROR: Failed to get command arguments\n");
+    return;
+  }
+
+  // Print command arguments as hex dump
+  Fw::Logger::log("Command Arguments (%d bytes):", size);
+
+  for (U32 i = 0; i < size; i++) {
+    if (i % 16 == 0) {
+      Fw::Logger::log("\n%04X: ", i);
     }
+    Fw::Logger::log("%02X ", buffPtr[i]);
+  }
+  Fw::Logger::log("\n");
 
-    // Command opcode is typically the first field
-    // FwOpcodeType opcode;
-    FwOpcodeType opCode;
-    Fw::SerializeStatus stat = data.deserialize(opCode);
-
-    if (stat != Fw::FW_SERIALIZE_OK) {
-        Fw::Logger::log("ERROR: Failed to deserialize opcode\n");
-        return;
-    }
-
-    // Print opcode in hex
-    Fw::Logger::log("Command Opcode: 0x%x\n", opCode);
-
-    // Get remaining buffer for command arguments
-    U8* buffPtr = data.getBuffAddr();
-
-    if (stat != Fw::FW_SERIALIZE_OK) {
-        Fw::Logger::log("ERROR: Failed to get command arguments\n");
-        return;
-    }
-
-    // Print command arguments as hex dump
-    Fw::Logger::log("Command Arguments (%d bytes):", size);
-
-    for (U32 i = 0; i < size; i++) {
-        if (i % 16 == 0) {
-            Fw::Logger::log("\n%04X: ", i);
-        }
-        Fw::Logger::log("%02X ", buffPtr[i]);
-    }
-    Fw::Logger::log("\n");
-
-    // Send command response (success)
-    // this->cmdResponseIn_out(0, context, Fw::CmdResponse::OK);
+  // Send command response (success)
+  // this->cmdResponseIn_out(0, context, Fw::CmdResponse::OK);
 }
 
 void CCSDSTester::bufferSendIn_handler(const NATIVE_INT_TYPE portNum,
@@ -98,10 +107,17 @@ void CCSDSTester::comStatusIn_handler(
 }
 
 void CCSDSTester::PING_cmdHandler(const FwOpcodeType opCode, const U32 cmdSeq) {
+  if (!isConnected && isConnected_drvReady_OutputPort(0)) {
+    this->drvReady_out(0);
+    isConnected = true;
+  } else {
+    Fw::Logger::log("Not Ready");
+  }
 
-  U32 dfltMessage = 0xdeadbeef;
+  U32 dfltMessage = 0x9944fead;
   com.resetSer();
   com.serialize(dfltMessage);
+
   this->PktSend_out(0, com, 0);
 
   this->cmdResponse_out(opCode, cmdSeq, Fw::CmdResponse::OK);
@@ -109,6 +125,12 @@ void CCSDSTester::PING_cmdHandler(const FwOpcodeType opCode, const U32 cmdSeq) {
 void CCSDSTester::MESSAGE_cmdHandler(const FwOpcodeType opCode,
                                      const U32 cmdSeq,
                                      const Fw::CmdStringArg &str1) {
+  if (!isConnected && isConnected_drvReady_OutputPort(0)) {
+    this->drvReady_out(0);
+    isConnected = true;
+  } else {
+    Fw::Logger::log("Not Ready");
+  }
   Fw::ComBuffer com;
   com.serialize(str1);
   this->PktSend_out(0, com, 0);
@@ -116,8 +138,19 @@ void CCSDSTester::MESSAGE_cmdHandler(const FwOpcodeType opCode,
   this->cmdResponse_out(opCode, cmdSeq, Fw::CmdResponse::OK);
 }
 
-  Drv::SendStatus CCSDSTester::drvSend_handler(FwIndexType, Fw::Buffer&) {
-
+Drv::SendStatus CCSDSTester::drvSend_handler(FwIndexType, Fw::Buffer & buffer) {
+  const FwSizeType framedSize = buffer.getSize();
+  U8* frameBuff = buffer.getData();
+  Fw::Logger::log("CCSDS Framed Data (%d bytes):", framedSize);
+  for (U32 i = 0; i < framedSize; i++) {
+      if (i % 16 == 0) {
+          Fw::Logger::log("\n%04X: ", i);
+      }
+      Fw::Logger::log("%02X ", frameBuff[i]);
   }
+  Fw::Logger::log("\n");
+
+  return Drv::SendStatus::SEND_OK;
+}
 
 } // namespace FlightComputer

@@ -162,8 +162,9 @@ module FlightComputer {
       tcFramer.framedOut -> ccsdsLink.comDataIn
       ccsdsLink.comStatus -> ccsdsNode.comStatusIn
       ccsdsNode.drvReady -> ccsdsLink.drvConnected
-      ccsdsNode.drvRecv -> ccsdsLink.drvDataIn
-      ccsdsLink.drvDataOut -> ccsdsNode.drvSend
+      # ccsdsNode.drvRecv -> ccsdsLink.drvDataIn
+      # ccsdsLink.drvDataOut -> ccsdsNode.drvSend
+      ccsdsLink.drvDataOut -> ccsdsLink.drvDataIn
 
       ccsdsLink.comDataOut -> ccsdsFrameAccumulator.dataIn
 

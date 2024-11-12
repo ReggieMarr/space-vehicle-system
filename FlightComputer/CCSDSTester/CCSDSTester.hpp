@@ -30,6 +30,7 @@ public:
   ~CCSDSTester();
 
 private:
+  bool isConnected = false;
   Fw::ComBuffer com;
   void bufferSendIn_handler(const NATIVE_INT_TYPE portNum,
                             Fw::Buffer &fwBuffer);
