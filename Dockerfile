@@ -1,4 +1,4 @@
-# Upgrade to Ubuntu 22.04 as recommended
+# Upgrade to Ubuntu 24.04 as recommended
 FROM ubuntu:22.04 AS fprime_deps
 
 # Set non-interactive installation mode for apt packages
