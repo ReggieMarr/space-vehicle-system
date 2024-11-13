@@ -63,13 +63,12 @@ module FlightComputer {
         @ Port for receiving the status signal
         async input port comStatusIn: Fw.SuccessCondition
 
-
         # DrvMockPorts
         @ Port invoked when the driver is ready to send/receive data
         output port drvReady: Drv.ByteStreamReady
 
         @ Port invoked when driver has received data
-        output port drvRecv: Drv.ByteStreamRecv
+        output port drvRcv: Drv.ByteStreamRecv
 
         @ Port invoked to send data out the driver
         guarded input port drvSend: Drv.ByteStreamSend

@@ -112,8 +112,7 @@ module FlightComputer {
       # Rate group 2 (1/2Hz)
       rateGroupDriverComp.CycleOut[Ports_RateGroups.rateGroup2] -> rateGroup2Comp.CycleIn
       rateGroup2Comp.RateGroupMemberOut[0] -> cmdSeq.schedIn
-      rateGroup2Comp.RateGroupMemberOut[1] -> flightSequencer.run
-      rateGroup2Comp.RateGroupMemberOut[2] -> $health.Run
+      rateGroup2Comp.RateGroupMemberOut[1] -> $health.Run
 
       # Rate group 3 (1/4Hz)
       rateGroupDriverComp.CycleOut[Ports_RateGroups.rateGroup3] -> rateGroup3Comp.CycleIn
@@ -148,23 +147,15 @@ module FlightComputer {
 
     connections ccsds {
 
-      # ccsdsTcpLink.allocate -> commsBufferManager.bufferGetCallee
-      # ccsdsTcpLink.$recv -> fprimeFrameAccumulator.dataIn
-      # tcFramer.framedOut -> ccsdsTcpLink.$send
-      # ccsdsNode.allocate -> commsBufferManager.bufferGetCallee
-      # ccsdsNode.$recv -> ccsdsFrameAccumulator.dataIn
-
       ccsdsNode.bufferSendOut -> tcFramer.bufferIn
       ccsdsNode.PktSend -> tcFramer.comIn
 
       tcFramer.framedAllocate -> commsBufferManager.bufferGetCallee
-      # tcFramer.bufferDeallocate -> ccsdsNode.bufferReturn
       tcFramer.framedOut -> ccsdsLink.comDataIn
       ccsdsLink.comStatus -> ccsdsNode.comStatusIn
       ccsdsNode.drvReady -> ccsdsLink.drvConnected
-      # ccsdsNode.drvRecv -> ccsdsLink.drvDataIn
-      # ccsdsLink.drvDataOut -> ccsdsNode.drvSend
-      ccsdsLink.drvDataOut -> ccsdsLink.drvDataIn
+      ccsdsLink.drvDataOut -> ccsdsNode.drvSend
+      ccsdsNode.drvRcv -> ccsdsLink.drvDataIn
 
       ccsdsLink.comDataOut -> ccsdsFrameAccumulator.dataIn
 
@@ -178,8 +169,6 @@ module FlightComputer {
       ccsdsUplinkRouter.bufferDeallocate -> commsBufferManager.bufferSendIn
 
       ccsdsNode.seqCmdStatus -> ccsdsUplinkRouter.cmdResponseIn
-
-      # ccsdsNode.bufferSendOut -> commsBufferManager.bufferSendIn
     }
 
   }

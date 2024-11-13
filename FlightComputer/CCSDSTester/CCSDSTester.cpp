@@ -11,7 +11,12 @@
 #include "FpConfig.h"
 #include "FpConfig.hpp"
 #include "Fw/Com/ComBuffer.hpp"
+#include "Fw/Com/ComPacket.hpp"
 #include "Fw/Logger/Logger.hpp"
+#include "Fw/Types/Serializable.hpp"
+#include "Svc/FrameAccumulator/FrameDetector.hpp"
+#include "Svc/FrameAccumulator/FrameDetector/CCSDSFrameDetector.hpp"
+#include "Utils/Types/CircularBuffer.hpp"
 
 namespace FlightComputer {
 
@@ -116,6 +121,7 @@ void CCSDSTester::PING_cmdHandler(const FwOpcodeType opCode, const U32 cmdSeq) {
 
   U32 dfltMessage = 0x9944fead;
   com.resetSer();
+  com.serialize(Fw::ComPacket::ComPacketType::FW_PACKET_COMMAND);
   com.serialize(dfltMessage);
 
   this->PktSend_out(0, com, 0);
@@ -149,6 +155,19 @@ Drv::SendStatus CCSDSTester::drvSend_handler(FwIndexType, Fw::Buffer & buffer) {
       Fw::Logger::log("%02X ", frameBuff[i]);
   }
   Fw::Logger::log("\n");
+
+  Types::CircularBuffer circBoi(buffer.getData(), buffer.getSize());
+  Fw::SerializeStatus stat = circBoi.serialize(buffer.getData(), buffer.getSize());
+  Fw::Logger::log("circBoi %d alloc %d cap %d\n",stat, circBoi.get_allocated_size(), circBoi.get_capacity());
+
+  Svc::FrameDetector::Status status = Svc::FrameDetector::Status::FRAME_DETECTED;
+  Svc::FrameDetectors::CCSDSFrameDetector ccsdsFrameDetector;
+
+  FwSizeType size_out = 0;
+  status = ccsdsFrameDetector.detect(circBoi, size_out);
+  Fw::Logger::log("Status %d out %d\n", status, size_out);
+
+  drvRcv_out(0, buffer, Drv::RecvStatus::RECV_OK);
 
   return Drv::SendStatus::SEND_OK;
 }
