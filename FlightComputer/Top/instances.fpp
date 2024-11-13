@@ -91,7 +91,7 @@ module FlightComputer {
   # Passive component instances
   # ----------------------------------------------------------------------
 
-  instance comm: Drv.TcpClient base id 0x4000
+  instance fprimeTcpLink: Drv.TcpClient base id 0x4000
 
   instance framer: Svc.Framer base id 0x4100
 
@@ -109,7 +109,7 @@ module FlightComputer {
 
   instance systemResources: Svc.SystemResources base id 0x4A00
 
-  instance frameAccumulator: Svc.FrameAccumulator base id 0x4C00
+  instance fprimeFrameAccumulator: Svc.FrameAccumulator base id 0x4C00
 
   instance deframer: Svc.Deframer base id 0x4D00
 
@@ -119,4 +119,22 @@ module FlightComputer {
     queue size Default.queueSize \
     stack size Default.stackSize \
     priority 59
+
+  instance sppDataLinkDeframer: Svc.SpaceDataLinkDeframer base id 0x5000
+  instance tcFramer: Svc.Framer base id 0x5100
+
+  # NOTE by getting the fprimeFrameAccumulator to use multiple frame dectors and multiple frameOut ports
+  # we could just use one tcpLink
+  # instance ccsdsTcpLink: Drv.TcpClient base id 0x5200
+  instance ccsdsLink: Svc.ComStub base id 0x5200
+  instance ccsdsFrameAccumulator: Svc.FrameAccumulator base id 0x5300
+  instance ccsdsUplinkRouter: Svc.Router base id 0x5400
+
+  # Setup with active params to match the CmdDispatcher
+  instance ccsdsNode: FlightComputer.CCSDSTester base id 0x5500 \
+    queue size 20 \
+    stack size Default.stackSize \
+    priority 60
+
+  # instance comDriver: Svc.Router base id 0x5600
 }

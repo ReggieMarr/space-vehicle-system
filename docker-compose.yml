@@ -43,7 +43,7 @@ services:
         - HOST_UID=${HOST_UID:-1000}
         - HOST_GID=${HOST_GID:-1000}
         - UPLINK_TARGET_PORT=$UPLINK_TARGET_PORT
-        - FPRIME_CONFIG_DIR=/MBSE_FSW/FlightComputer/config
+        - FPRIME_CONFIG_DIR=$FSW_WDIR/FlightComputer/config
         - SSH_AUTH_SOCK=/ssh-agent
         - PATH=/home/user/STARS/autocoder:/home/user/.local/bin:${PATH} # TODO should check is necessary
     volumes:

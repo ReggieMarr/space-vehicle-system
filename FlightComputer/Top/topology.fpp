@@ -27,7 +27,7 @@ module FlightComputer {
     instance gdsChanTlm
     instance cmdDisp
     instance cmdSeq
-    instance comm
+    instance fprimeTcpLink
     instance deframer
     instance eventLogger
     instance fatalAdapter
@@ -36,7 +36,7 @@ module FlightComputer {
     instance fileManager
     instance fileUplink
     instance commsBufferManager
-    instance frameAccumulator
+    instance fprimeFrameAccumulator
     instance framer
     instance posixTime
     instance pingRcvr
@@ -49,6 +49,13 @@ module FlightComputer {
     instance textLogger
     instance systemResources
     instance flightSequencer
+
+    instance sppDataLinkDeframer
+    instance ccsdsLink
+    instance ccsdsFrameAccumulator
+    instance ccsdsUplinkRouter
+    instance ccsdsNode
+    instance tcFramer
 
     # ----------------------------------------------------------------------
     # Pattern graph specifiers
@@ -79,10 +86,10 @@ module FlightComputer {
       fileDownlink.bufferSendOut -> framer.bufferIn
 
       framer.framedAllocate -> commsBufferManager.bufferGetCallee
-      framer.framedOut -> comm.$send
+      framer.framedOut -> fprimeTcpLink.$send
       framer.bufferDeallocate -> fileDownlink.bufferReturn
 
-      comm.deallocate -> commsBufferManager.bufferSendIn
+      fprimeTcpLink.deallocate -> commsBufferManager.bufferSendIn
 
     }
 
@@ -105,8 +112,7 @@ module FlightComputer {
       # Rate group 2 (1/2Hz)
       rateGroupDriverComp.CycleOut[Ports_RateGroups.rateGroup2] -> rateGroup2Comp.CycleIn
       rateGroup2Comp.RateGroupMemberOut[0] -> cmdSeq.schedIn
-      rateGroup2Comp.RateGroupMemberOut[1] -> flightSequencer.run
-      rateGroup2Comp.RateGroupMemberOut[2] -> $health.Run
+      rateGroup2Comp.RateGroupMemberOut[1] -> $health.Run
 
       # Rate group 3 (1/4Hz)
       rateGroupDriverComp.CycleOut[Ports_RateGroups.rateGroup3] -> rateGroup3Comp.CycleIn
@@ -120,14 +126,14 @@ module FlightComputer {
       cmdDisp.seqCmdStatus -> cmdSeq.cmdResponseIn
     }
 
-    connections Uplink {
+    connections fprimeUplink {
 
-      comm.allocate -> commsBufferManager.bufferGetCallee
-      comm.$recv -> frameAccumulator.dataIn
+      fprimeTcpLink.allocate -> commsBufferManager.bufferGetCallee
+      fprimeTcpLink.$recv -> fprimeFrameAccumulator.dataIn
 
-      frameAccumulator.frameOut -> deframer.framedIn
-      frameAccumulator.frameAllocate -> commsBufferManager.bufferGetCallee
-      frameAccumulator.dataDeallocate -> commsBufferManager.bufferSendIn
+      fprimeFrameAccumulator.frameOut -> deframer.framedIn
+      fprimeFrameAccumulator.frameAllocate -> commsBufferManager.bufferGetCallee
+      fprimeFrameAccumulator.dataDeallocate -> commsBufferManager.bufferSendIn
       deframer.deframedOut -> uplinkRouter.dataIn
 
       uplinkRouter.commandOut -> cmdDisp.seqCmdBuff
@@ -137,6 +143,32 @@ module FlightComputer {
       cmdDisp.seqCmdStatus -> uplinkRouter.cmdResponseIn
 
       fileUplink.bufferSendOut -> commsBufferManager.bufferSendIn
+    }
+
+    connections ccsds {
+
+      ccsdsNode.bufferSendOut -> tcFramer.bufferIn
+      ccsdsNode.PktSend -> tcFramer.comIn
+
+      tcFramer.framedAllocate -> commsBufferManager.bufferGetCallee
+      tcFramer.framedOut -> ccsdsLink.comDataIn
+      ccsdsLink.comStatus -> ccsdsNode.comStatusIn
+      ccsdsNode.drvReady -> ccsdsLink.drvConnected
+      ccsdsLink.drvDataOut -> ccsdsNode.drvSend
+      ccsdsNode.drvRcv -> ccsdsLink.drvDataIn
+
+      ccsdsLink.comDataOut -> ccsdsFrameAccumulator.dataIn
+
+      ccsdsFrameAccumulator.frameOut -> sppDataLinkDeframer.framedIn
+      ccsdsFrameAccumulator.frameAllocate -> commsBufferManager.bufferGetCallee
+      ccsdsFrameAccumulator.dataDeallocate -> commsBufferManager.bufferSendIn
+      sppDataLinkDeframer.deframedOut -> ccsdsUplinkRouter.dataIn
+
+      ccsdsUplinkRouter.commandOut -> ccsdsNode.seqCmdBuff
+      ccsdsUplinkRouter.fileOut -> ccsdsNode.bufferSendIn
+      ccsdsUplinkRouter.bufferDeallocate -> commsBufferManager.bufferSendIn
+
+      ccsdsNode.seqCmdStatus -> ccsdsUplinkRouter.cmdResponseIn
     }
 
   }

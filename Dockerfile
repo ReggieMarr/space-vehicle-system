@@ -1,4 +1,4 @@
-# Upgrade to Ubuntu 22.04 as recommended
+# Upgrade to Ubuntu 24.04 as recommended
 FROM ubuntu:22.04 AS fprime_deps
 
 # Set non-interactive installation mode for apt packages
@@ -19,7 +19,7 @@ RUN wget -O boost.tar.gz https://boostorg.jfrog.io/artifactory/main/release/1.78
     ./b2 link=static install && cd /
 
 # Set the working directory for fprime software
-ARG FSW_WDIR=/MBSE_FSW
+ARG FSW_WDIR=/fsw
 
 # Create a non-root user for better security practices
 ARG HOST_UID=1000
@@ -31,7 +31,7 @@ RUN groupadd -g $HOST_GID user && \
     echo 'user ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers
 
 WORKDIR $FSW_WDIR
-RUN chown -R user:user /MBSE_FSW
+RUN chown -R user:user $FSW_WDIR
 USER user
 
 FROM fprime_deps AS fprime_src
@@ -99,3 +99,6 @@ USER user
 # This seems to be where fprime expects STARS to be
 RUN git clone https://github.com/JPLOpenSource/STARS.git ${HOME}/STARS
 RUN pip install -r ${HOME}/STARS/requirements.txt
+
+# CCSDS testing
+RUN pip install spacepackets
