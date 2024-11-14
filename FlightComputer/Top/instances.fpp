@@ -120,7 +120,7 @@ module FlightComputer {
     stack size Default.stackSize \
     priority 59
 
-  instance sppDataLinkDeframer: Svc.SpaceDataLinkDeframer base id 0x5000
+  instance sppDataLinkDeframer: Svc.TMSpaceDataLinkDeframer base id 0x5000
   instance ccsdsFramer: Svc.Framer base id 0x5100
 
   # NOTE by getting the fprimeFrameAccumulator to use multiple frame dectors and multiple frameOut ports

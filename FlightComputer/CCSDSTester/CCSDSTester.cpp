@@ -10,9 +10,11 @@
 #include "Drv/Ip/IpSocket.hpp"
 #include "FpConfig.h"
 #include "FpConfig.hpp"
+#include "Fw/Buffer/Buffer.hpp"
 #include "Fw/Com/ComBuffer.hpp"
 #include "Fw/Com/ComPacket.hpp"
 #include "Fw/Logger/Logger.hpp"
+#include "Fw/Types/Assert.hpp"
 #include "Fw/Types/Serializable.hpp"
 #include "Svc/FrameAccumulator/FrameDetector.hpp"
 #include "Svc/FrameAccumulator/FrameDetector/CCSDSFrameDetector.hpp"
@@ -79,29 +81,28 @@ void CCSDSTester::seqCmdBuff_handler(NATIVE_INT_TYPE portNum,
   }
   Fw::Logger::log("\n");
 
-  // Send command response (success)
-  // this->cmdResponseIn_out(0, context, Fw::CmdResponse::OK);
+  FW_ASSERT(isConnected_bufferDeallocate_OutputPort(portNum));
+  Fw::Buffer buff(data.getBuffAddr(), data.getBuffCapacity());
+  bufferDeallocate_out(portNum, buff);
 }
 
 void CCSDSTester::bufferSendIn_handler(const NATIVE_INT_TYPE portNum,
                                        Fw::Buffer &fwBuffer) {
-  Fw::Logger::log("Handling ccsds buffer");
-  // Pass through for now
-  this->bufferSendOut_out(0, fwBuffer);
+  Fw::Logger::log("Received File Buffer\n");
+  const FwSizeType size = fwBuffer.getSize();
+  U8 *ptr = fwBuffer.getData();
+  for (U32 i = 0; i < size; i++) {
+    if (i % 16 == 0) {
+      Fw::Logger::log("\n%04X: ", i);
+    }
+    Fw::Logger::log("%02X ", ptr[i]);
+  }
+  Fw::Logger::log("\n");
+
+  FW_ASSERT(isConnected_bufferDeallocate_OutputPort(portNum));
+  bufferDeallocate_out(portNum, fwBuffer);
 }
 
-// void CCSDSTester ::dataIn_handler(FwIndexType portNum, Fw::Buffer& buffer,
-// const Drv::RecvStatus& status) {
-//     // Check whether there is data to process
-
-//     // Fw::Logger::log("FrameAccumulator often send");
-//     // if (status.e == Drv::RecvStatus::RECV_OK) {
-//     //     // There is: process the data
-//     //     this->processBuffer(buffer);
-//     // }
-//     // // Deallocate the buffer
-//     // this->dataDeallocate_out(0, buffer);
-// }
 void CCSDSTester::comStatusIn_handler(
     FwIndexType portNum,   //!< The port number
     Fw::Success &condition //!< Condition success/failure
@@ -121,11 +122,12 @@ void CCSDSTester::PING_cmdHandler(const FwOpcodeType opCode, const U32 cmdSeq) {
 
   U32 dfltMessage = 0x9944fead;
   com.resetSer();
-  com.serialize(Fw::ComPacket::ComPacketType::FW_PACKET_COMMAND);
+  U8 packetType = Fw::ComPacket::ComPacketType::FW_PACKET_COMMAND;
+  com.serialize(packetType);
   com.serialize(dfltMessage);
 
   PktSend_out(0, com, 0);
-  cmdResponse_out(opCode, cmdSeq, Fw::CmdResponse::OK);
+  // cmdResponse_out(opCode, cmdSeq, Fw::CmdResponse::OK);
 }
 void CCSDSTester::MESSAGE_cmdHandler(const FwOpcodeType opCode,
                                      const U32 cmdSeq,
@@ -137,22 +139,27 @@ void CCSDSTester::MESSAGE_cmdHandler(const FwOpcodeType opCode,
     Fw::Logger::log("Not Ready");
   }
   Fw::ComBuffer com;
+  com.resetSer();
+  // U32 starter = 0xFFFF;
+  // com.serialize(starter);
+  // Fw::ComPacket::ComPacketType_t packetType = Fw::ComPacket::ComPacketType_e::FW_PACKET_FILE;
+  U8 packetType = Fw::ComPacket::ComPacketType::FW_PACKET_FILE;
+  com.serialize(packetType);
   com.serialize(str1);
 
   // TODO add support for checking the port's connected
   PktSend_out(0, com, 0);
-
-  cmdResponse_out(opCode, cmdSeq, Fw::CmdResponse::OK);
+  // cmdResponse_out(opCode, cmdSeq, Fw::CmdResponse::OK);
 }
 
-Drv::SendStatus CCSDSTester::drvSend_handler(FwIndexType, Fw::Buffer & buffer) {
+Drv::SendStatus CCSDSTester::drvSend_handler(FwIndexType portNum, Fw::Buffer & buffer) {
 
-  // Types::CircularBuffer circBoi(buffer.getData(), buffer.getSize());
-  // Fw::SerializeStatus stat = circBoi.serialize(buffer.getData(), buffer.getSize());
-  // circBoi.print();
-  // U8 btt = 0;
-  // circBoi.peek(btt, 0);
-  // Fw::Logger::log("circBoi %x %d alloc %d cap %d\n", btt, stat, circBoi.get_allocated_size(), circBoi.get_capacity());
+  Types::CircularBuffer circBoi(buffer.getData(), buffer.getSize());
+  Fw::SerializeStatus stat = circBoi.serialize(buffer.getData(), buffer.getSize());
+  circBoi.print();
+  U8 btt = 0;
+  circBoi.peek(btt, 0);
+  Fw::Logger::log("circBoi %x %d alloc %d cap %d\n", btt, stat, circBoi.get_allocated_size(), circBoi.get_capacity());
 
   // Svc::FrameDetector::Status status = Svc::FrameDetector::Status::FRAME_DETECTED;
   // Svc::FrameDetectors::TMSpaceDataLinkDetector ccsdsFrameDetector;
@@ -161,7 +168,7 @@ Drv::SendStatus CCSDSTester::drvSend_handler(FwIndexType, Fw::Buffer & buffer) {
   // status = ccsdsFrameDetector.detect(circBoi, size_out);
   // Fw::Logger::log("Status %d out %d\n", status, size_out);
 
-  if (!isConnected_drvRcv_OutputPort(0)) {
+  if (!isConnected_drvRcv_OutputPort(portNum)) {
     return Drv::SendStatus::SEND_ERROR;
   }
 

@@ -52,7 +52,7 @@ static void dfltSigHandler(int signum) {
 int main(int argc, char* argv[]) {
     Os::Console::init();
     U32 uplink_port = 0; // Invalid port number forced
-    U32 downlink_port = 0; // Invalid port number forced
+    U32 downlink_port = 0; // Invalid port number forcedt
     I32 option;
     char* hostname;
     option = 0;

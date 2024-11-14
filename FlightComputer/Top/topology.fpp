@@ -153,6 +153,7 @@ module FlightComputer {
       ccsdsFramer.framedAllocate -> commsBufferManager.bufferGetCallee
       ccsdsFramer.framedOut -> ccsdsLink.comDataIn
       ccsdsLink.comStatus -> ccsdsNode.comStatusIn
+      # ccsdsNode.allocate -> commsBufferManager.bufferGetCallee
       ccsdsNode.drvReady -> ccsdsLink.drvConnected
       ccsdsLink.drvDataOut -> ccsdsNode.drvSend
       ccsdsNode.drvRcv -> ccsdsLink.drvDataIn
@@ -167,6 +168,7 @@ module FlightComputer {
       ccsdsUplinkRouter.commandOut -> ccsdsNode.seqCmdBuff
       ccsdsUplinkRouter.fileOut -> ccsdsNode.bufferSendIn
       ccsdsUplinkRouter.bufferDeallocate -> commsBufferManager.bufferSendIn
+      ccsdsNode.bufferDeallocate -> commsBufferManager.bufferSendIn
 
       ccsdsNode.seqCmdStatus -> ccsdsUplinkRouter.cmdResponseIn
     }

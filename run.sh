@@ -28,13 +28,14 @@ Options:
   --debug              Enable debug mode
   --as-host            Run as host
   --clean              Clean build
+  --host-thread-ctl    Set thread control for running without sudo (this itself requires sudo)
   --help               Show this help message
-
 Commands:
   docker-build         Build the Docker image
   build                Build the project
   inspect [container]  Inspect a container
-  gds                  Run the GDS
+  exec gds             Run the GDS
+  exec FlightComputer  Run the Flight Software
   update               Pull latest Docker images
   teardown             Tear down the environment
 EOF
@@ -44,6 +45,7 @@ CLEAN=0
 AS_HOST=0
 DAEMON=0
 DEBUG=0
+SET_THREAD_CTRL=0
 
 # Process flags
 for arg in "$@"; do
@@ -52,6 +54,7 @@ for arg in "$@"; do
     --debug) DEBUG=1 ;;
     --as-host) AS_HOST=1 ;;
     --clean) CLEAN=1 ;;
+    --host-thread-ctrl) SET_THREAD_CTRL=1 ;;
     --help) show_help; exit 0 ;;
   esac
 done
@@ -132,6 +135,12 @@ case $1 in
     MOD_DICT_CMD="sed -i \"s|${FSW_WDIR}|${SCRIPT_DIR}|g\" \"${SCRIPT_DIR}/FlightComputer/build-fprime-automatic-native/compile_commands.json\""
 
     exec_cmd "$MOD_DICT_CMD"
+
+    if [ "${SET_THREAD_CTRL}" -eq "1" ]; then
+        echo 'Setting thread control for non-sudo host execution'
+        THREAD_CMD="sudo setcap \"cap_sys_nice+ep\" ${SCRIPT_DIR}/FlightComputer/build-artifacts/Linux/FlightComputer/bin/FlightComputer"
+        exec_cmd "$THREAD_CMD"
+    fi
     ;;
 
   "inspect")

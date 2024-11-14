@@ -87,7 +87,7 @@ module FlightComputer {
         # guarded input port $send: Drv.ByteStreamSend
 
         # output port allocate: Fw.BufferGet
-        # output port deallocate: Fw.BufferSend
+        output port bufferDeallocate: Fw.BufferSend
 
         @ Simple command received interface
         async command PING
