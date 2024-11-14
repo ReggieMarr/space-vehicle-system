@@ -124,9 +124,8 @@ void CCSDSTester::PING_cmdHandler(const FwOpcodeType opCode, const U32 cmdSeq) {
   com.serialize(Fw::ComPacket::ComPacketType::FW_PACKET_COMMAND);
   com.serialize(dfltMessage);
 
-  this->PktSend_out(0, com, 0);
-
-  this->cmdResponse_out(opCode, cmdSeq, Fw::CmdResponse::OK);
+  PktSend_out(0, com, 0);
+  cmdResponse_out(opCode, cmdSeq, Fw::CmdResponse::OK);
 }
 void CCSDSTester::MESSAGE_cmdHandler(const FwOpcodeType opCode,
                                      const U32 cmdSeq,
@@ -139,33 +138,32 @@ void CCSDSTester::MESSAGE_cmdHandler(const FwOpcodeType opCode,
   }
   Fw::ComBuffer com;
   com.serialize(str1);
-  this->PktSend_out(0, com, 0);
 
-  this->cmdResponse_out(opCode, cmdSeq, Fw::CmdResponse::OK);
+  // TODO add support for checking the port's connected
+  PktSend_out(0, com, 0);
+
+  cmdResponse_out(opCode, cmdSeq, Fw::CmdResponse::OK);
 }
 
 Drv::SendStatus CCSDSTester::drvSend_handler(FwIndexType, Fw::Buffer & buffer) {
-  const FwSizeType framedSize = buffer.getSize();
-  U8* frameBuff = buffer.getData();
-  Fw::Logger::log("CCSDS Framed Data (%d bytes):", framedSize);
-  for (U32 i = 0; i < framedSize; i++) {
-      if (i % 16 == 0) {
-          Fw::Logger::log("\n%04X: ", i);
-      }
-      Fw::Logger::log("%02X ", frameBuff[i]);
+
+  // Types::CircularBuffer circBoi(buffer.getData(), buffer.getSize());
+  // Fw::SerializeStatus stat = circBoi.serialize(buffer.getData(), buffer.getSize());
+  // circBoi.print();
+  // U8 btt = 0;
+  // circBoi.peek(btt, 0);
+  // Fw::Logger::log("circBoi %x %d alloc %d cap %d\n", btt, stat, circBoi.get_allocated_size(), circBoi.get_capacity());
+
+  // Svc::FrameDetector::Status status = Svc::FrameDetector::Status::FRAME_DETECTED;
+  // Svc::FrameDetectors::TMSpaceDataLinkDetector ccsdsFrameDetector;
+
+  // FwSizeType size_out = 0;
+  // status = ccsdsFrameDetector.detect(circBoi, size_out);
+  // Fw::Logger::log("Status %d out %d\n", status, size_out);
+
+  if (!isConnected_drvRcv_OutputPort(0)) {
+    return Drv::SendStatus::SEND_ERROR;
   }
-  Fw::Logger::log("\n");
-
-  Types::CircularBuffer circBoi(buffer.getData(), buffer.getSize());
-  Fw::SerializeStatus stat = circBoi.serialize(buffer.getData(), buffer.getSize());
-  Fw::Logger::log("circBoi %d alloc %d cap %d\n",stat, circBoi.get_allocated_size(), circBoi.get_capacity());
-
-  Svc::FrameDetector::Status status = Svc::FrameDetector::Status::FRAME_DETECTED;
-  Svc::FrameDetectors::CCSDSFrameDetector ccsdsFrameDetector;
-
-  FwSizeType size_out = 0;
-  status = ccsdsFrameDetector.detect(circBoi, size_out);
-  Fw::Logger::log("Status %d out %d\n", status, size_out);
 
   drvRcv_out(0, buffer, Drv::RecvStatus::RECV_OK);
 

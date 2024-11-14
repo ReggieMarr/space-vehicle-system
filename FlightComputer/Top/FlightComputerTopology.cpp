@@ -33,8 +33,9 @@ Fw::MallocAllocator mallocator;
 // framing and deframing implementations.
 Svc::FprimeFraming fprimeFraming;
 Svc::TCSpaceDataLinkFraming tcFraming;
+Svc::TMSpaceDataLinkFraming tmFraming;
 Svc::FrameDetectors::FprimeFrameDetector fprimeFrameDetector;
-Svc::FrameDetectors::CCSDSFrameDetector ccsdsFrameDetector;
+Svc::FrameDetectors::TMSpaceDataLinkDetector ccsdsFrameDetector;
 
 // The reference topology divides the incoming clock signal (1Hz) into sub-signals: 1Hz, 1/2Hz, and 1/4Hz and
 // zero offset for all the dividers
@@ -121,8 +122,8 @@ void configureTopology() {
 
     // Framer and Deframer components need to be passed a protocol handler
     framer.setup(fprimeFraming);
-    tcFramer.setup(tcFraming);
-    // This setups up deframing
+    ccsdsFramer.setup(tmFraming);
+    // This sets up deframing
     fprimeFrameAccumulator.configure(fprimeFrameDetector, 1, mallocator, 2048);
     ccsdsFrameAccumulator.configure(ccsdsFrameDetector, 2, mallocator, 2048);
 }

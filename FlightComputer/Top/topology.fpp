@@ -55,7 +55,7 @@ module FlightComputer {
     instance ccsdsFrameAccumulator
     instance ccsdsUplinkRouter
     instance ccsdsNode
-    instance tcFramer
+    instance ccsdsFramer
 
     # ----------------------------------------------------------------------
     # Pattern graph specifiers
@@ -147,11 +147,11 @@ module FlightComputer {
 
     connections ccsds {
 
-      ccsdsNode.bufferSendOut -> tcFramer.bufferIn
-      ccsdsNode.PktSend -> tcFramer.comIn
+      ccsdsNode.bufferSendOut -> ccsdsFramer.bufferIn
+      ccsdsNode.PktSend -> ccsdsFramer.comIn
 
-      tcFramer.framedAllocate -> commsBufferManager.bufferGetCallee
-      tcFramer.framedOut -> ccsdsLink.comDataIn
+      ccsdsFramer.framedAllocate -> commsBufferManager.bufferGetCallee
+      ccsdsFramer.framedOut -> ccsdsLink.comDataIn
       ccsdsLink.comStatus -> ccsdsNode.comStatusIn
       ccsdsNode.drvReady -> ccsdsLink.drvConnected
       ccsdsLink.drvDataOut -> ccsdsNode.drvSend
