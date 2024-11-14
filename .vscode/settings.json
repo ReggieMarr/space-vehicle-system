@@ -1,0 +1,12 @@
+{
+    "files.exclude": {
+        "**/astro": true,
+        "**/downlink-client": true,
+        "**/hil-flight-simulator": true
+    },
+    "search.exclude": {
+        "**/astro": true,
+        "**/downlink-client": true,
+        "**/hil-flight-simulator": true
+    }
+}

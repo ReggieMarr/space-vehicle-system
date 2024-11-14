@@ -1,0 +1,327 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+    {
+        "name": "Python attach local",
+        "type": "python",
+        "request": "attach",
+        "connect": {
+            "host": "localhost",
+            "port": 5678
+        },
+        "cwd": "${workspaceFolder}/deploy",
+        "console": "integratedTerminal",
+        "justMyCode": false
+    },
+    {
+        "name": "MBSE Python attach in docker",
+        "type": "python",
+        "request": "attach",
+        "connect": {
+            "host": "localhost",
+            "port": 5678
+        },
+        "cwd": "${workspaceFolder}/scripts",
+        "console": "integratedTerminal",
+        "justMyCode": false,
+        "pathMappings": [
+            {
+                "localRoot": "/home/reggiemarr/Projects/MBSE_FSW/",
+                "remoteRoot": "/MBSE_FSW"
+            },
+            {
+                "localRoot": "/home/reggiemarr/Projects/MBSE_FSW/scripts/",
+                "remoteRoot": "/MBSE_FSW/scripts"
+            }
+        ]
+    },
+    {
+        "name": "pyinfra deploy",
+        "type": "python",
+        "request": "launch",
+        "module": "pyinfra",
+        "env": {
+            "GEVENT_SUPPORT": "True"
+        },
+        "args": [
+            "--limit",
+            "obc-c441",
+            "inventory.py",
+            "inventory.py",
+            "deploy.py"
+        ],
+        "cwd": "${workspaceFolder}/deploy",
+        "console": "integratedTerminal",
+        "justMyCode": false
+    },
+    {"name": "run deployment",
+        "type": "python",
+        "request": "launch",
+        "args": [
+            "${workspaceFolder}/run-paramiko.py"
+        ],
+        "console": "integratedTerminal",
+        "justMyCode": false
+    },
+{
+    "name": "Attach to px1c415",
+    "type": "cppdbg",
+    "request": "launch",
+    "program": "${workspaceFolder}/FlightComputer/build-artifacts/Linux/FlightComputer/bin/FlightComputer",
+    "args": [],
+    "stopAtEntry": false,
+    "cwd": "${workspaceFolder}",
+    "args": ["-a", "10.10.15.50", "-u", "50000", "-d", "50050"],
+    "environment": [],
+    "MIMode": "gdb",
+    "miDebuggerPath": "/usr/bin/gdb",
+    "miDebuggerServerAddress": "10.10.0.247:5588",
+    "setupCommands": [
+        {
+
+            "description": "Docker Debug",
+            "text": "-enable-pretty-printing",
+            "ignoreFailures": true
+        }
+    ],
+    "sourceFileMap": {
+        "/rdx_stack/flightcomputer-software/": "${workspaceFolder}"
+    },
+    "debuggerPath": "/usr/bin/gdb",
+    "pipeProgram": "/usr/bin/ssh",
+    "pipeArgs": [
+        "-t",
+        "rdx@10.10.0.247",
+        "sudo"
+    ],
+    "pipeCwd": "${workspaceFolder}"
+},
+
+{
+    "name": "Attach to rfdemo",
+    "type": "cppdbg",
+    "request": "launch",
+    "program": "${workspaceFolder}/FlightComputer/build-artifacts/Linux/FlightComputer/bin/FlightComputer",
+    "args": [],
+    "stopAtEntry": false,
+    "cwd": "${workspaceFolder}",
+    "environment": [],
+    "MIMode": "gdb",
+    "miDebuggerPath": "/usr/bin/gdb",
+    "miDebuggerServerAddress": "10.10.0.177:5588",
+    "setupCommands": [
+        {
+
+            "description": "Docker Debug",
+            "text": "-enable-pretty-printing",
+            "ignoreFailures": true
+        }
+    ],
+    "sourceFileMap": {
+        "/rdx_stack/flightcomputer-software/": "${workspaceFolder}"
+    },
+    "debuggerPath": "/usr/bin/gdb",
+    "pipeProgram": "/usr/bin/ssh",
+    "pipeArgs": [
+        "-t",
+        "rdx@10.10.0.177",
+        "sudo"
+    ],
+    "pipeCwd": "${workspaceFolder}"
+},
+{
+    "name": "Attach to px1c415",
+    "type": "cppdbg",
+    "request": "launch",
+    "program": "${workspaceFolder}/FlightComputer/build-artifacts/Linux/FlightComputer/bin/FlightComputer",
+    "args": [],
+    "stopAtEntry": false,
+    "cwd": "${workspaceFolder}",
+    "args": ["-a", "10.10.15.50", "-u", "50000", "-d", "50050"],
+    "environment": [],
+    "MIMode": "gdb",
+    "miDebuggerPath": "/usr/bin/gdb",
+    "miDebuggerServerAddress": "10.10.0.247:5588",
+    "setupCommands": [
+        {
+
+            "description": "Docker Debug",
+            "text": "-enable-pretty-printing",
+            "ignoreFailures": true
+        }
+    ],
+    "sourceFileMap": {
+        "/fsw/": "${workspaceFolder}"
+    },
+    "debuggerPath": "/usr/bin/gdb",
+    "pipeProgram": "/usr/bin/ssh",
+    "pipeArgs": [
+        "-t",
+        "rdx@10.10.0.247",
+        "sudo"
+    ],
+    "pipeCwd": "${workspaceFolder}"
+},
+{
+    "name": "Attach to hil server",
+    "type": "cppdbg",
+    "request": "launch",
+    "program": "${workspaceFolder}/FlightComputer/build-artifacts/Linux/FlightComputer/bin/FlightComputer",
+    "args": [],
+    "stopAtEntry": false,
+    "cwd": "${workspaceFolder}",
+    "args": ["-a", "10.10.15.50", "-u", "50000", "-d", "50050"],
+    "miDebuggerServerAddress": "10.10.0.246:5588",
+    "environment": [],
+    "externalConsole": true,
+    "MIMode": "gdb",
+    "miDebuggerPath": "/usr/bin/gdb",
+    "setupCommands": [
+        {
+
+            "description": "Docker Debug",
+            "text": "-enable-pretty-printing",
+            "ignoreFailures": true
+        }
+    ],
+    "sourceFileMap": {
+        "/fsw/": "${workspaceFolder}"
+    },
+    "debuggerPath": "/usr/bin/gdb",
+    "pipeProgram": "/usr/bin/ssh",
+    "pipeArgs": [
+        "hiladmin@10.10.0.246"
+    ],
+    "pipeCwd": "${workspaceFolder}"
+},
+{
+    "name": "(gdb) Launch Docker App",
+    "type": "cppdbg",
+    "request": "launch",
+    "program": "${workspaceFolder}/FlightComputer/build-artifacts/Linux/FlightComputer/bin/FlightComputer",
+    "args": [],
+    "stopAtEntry": false,
+    "cwd": "${workspaceFolder}",
+    "miDebuggerServerAddress": "localhost:5555",
+    "environment": [],
+    "externalConsole": true,
+    "MIMode": "gdb",
+    "setupCommands": [
+        {
+
+            "description": "Docker Debug",
+            "text": "-enable-pretty-printing",
+            "ignoreFailures": true
+        }
+    ],
+    "preLaunchTask": "Attach debug Flight SW"
+    // "postDebugTask": "Teardown Flight SW"
+},
+{
+    "name": "Attach to Flight SW on local",
+    "type": "cppdbg",
+    "request": "launch",
+    "program": "${workspaceFolder}/FlightComputer/build-artifacts/Linux/FlightComputer/bin/FlightComputer",
+    "args": [],
+    "stopAtEntry": true,
+    "cwd": "${workspaceFolder}",
+    "miDebuggerServerAddress": "localhost:5555",
+    "environment": [],
+    "externalConsole": true,
+    "MIMode": "gdb",
+    "sourceFileMap": {
+        "/fsw": "${workspaceFolder}"
+
+    },
+    "setupCommands": [
+        {
+
+            "description": "Docker Debug",
+            "text": "-enable-pretty-printing",
+            "ignoreFailures": true
+        }
+    ]
+},
+{
+    "name": "Launch GDS Integration tests",
+    "type": "python",
+    "request": "launch",
+    "connect": {"host": "localhost", "port": 5678},
+    "program": "${file}",
+    "console": "externalTerminal",
+    "pathMappings": [{"localRoot": "${workspaceFolder}",
+                        "remoteRoot": "/home/fprime/flightcomputer-software"}]
+},
+
+{
+    "name": "Attach GDS Integration Test Runner",
+    "type": "python",
+    "request": "attach",
+    "connect": {"host": "172.29.1.5", "port": 5678},
+    "program": "${file}",
+    "console": "externalTerminal",
+    "pathMappings": [{"localRoot": "${workspaceFolder}",
+                        "remoteRoot": "/home/fprime/flightcomputer-software"}],
+    "postDebugTask": "Teardown Integration Tests"
+},
+{
+    "name": "Launch Flight SW in docker",
+    "type": "cppdbg",
+    "request":"launch",
+    "program": "${workspaceFolder}/FlightComputer/build-artifacts/Linux/FlightComputer/bin/FlightComputer",
+    "args": ["-a", "127.1.1.1", "-u", "50000", "-d", "50050"],
+    "stopAtEntry": false,
+    "cwd": "${workspaceFolder}",
+    "environment": [],
+    "externalConsole": false,
+    "MIMode": "gdb",
+    "miDebuggerPath": "/usr/bin/gdb",
+    "sourceFileMap": {
+        "/fsw/": "${workspaceFolder}"
+    },
+    "setupCommands": [
+        {
+            "description": "Enable pretty-printing for gdb",
+            "text": "-enable-pretty-printing",
+            "ignoreFailures": true
+        }
+    ],
+    "pipeCwd": "${workspaceFolder}",
+    "pipeProgram": "docker",
+    "pipeArgs": [
+        "compose",
+        "run",
+        "-i",
+        "fsw",
+        "bash",
+        "-c"
+    ],
+    "debuggerPath": "/usr/bin/gdb"
+},
+
+{
+    "name": "Launch Flight SW on host",
+    "type": "cppdbg",
+    "request":"launch",
+    "program": "${workspaceFolder}/FlightComputer/build-artifacts/Linux/FlightComputer/bin/FlightComputer",
+    "args": ["-a localhost"],
+    "stopAtEntry": false,
+    "cwd": "${workspaceFolder}",
+    "environment": [],
+    "externalConsole": false,
+    "MIMode": "gdb",
+    "miDebuggerPath": "/usr/bin/gdb",
+    "sourceFileMap": {
+        "/fsw/": "${workspaceFolder}"
+    },
+    "setupCommands": [
+        {
+            "description": "Enable pretty-printing for gdb",
+            "text": "-enable-pretty-printing",
+            "ignoreFailures": true
+        }
+    ],
+    "preLaunchTask": "Build Flight SW"
+    }
+    ]
+}

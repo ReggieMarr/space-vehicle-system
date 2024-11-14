@@ -1,0 +1,68 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+
+{
+    "label": "Debug Flight SW",
+    "type": "shell",
+    "command": "${workspaceFolder}/run.sh debug",
+    "group": {
+        "kind": "build",
+        "isDefault": true
+    }
+},
+
+{
+    "label": "Teardown Flight SW",
+    "type": "shell",
+    "command": "${workspaceFolder}/run.sh teardown flight-sw"
+},
+
+{
+    "label": "Build Flight SW",
+    "type": "shell",
+    "command": "${workspaceFolder}/run.sh build",
+    "group": {
+        "kind": "build",
+        "isDefault": true
+    }
+},
+{
+    "label": "Run Flight SW",
+    "type": "shell",
+    "command": "${workspaceFolder}/run.sh exec FlightComputer --debug"
+},
+
+{
+    "label": "Run GDS Integration Test Runner",
+    "type": "shell",
+    "command": "${workspaceFolder}/run.sh gds"
+},
+{
+    "label": "Teardown GDS",
+    "type": "shell",
+    "command": "${workspaceFolder}/run.sh teardown flight-sw-gds"
+},
+{
+    "label": "Teardown Integration Tests",
+    "type": "shell",
+    "command": "${workspaceFolder}/run.sh compose-teardown"
+},
+{
+    "label": "Attach debug Flight SW",
+    "dependsOrder": "sequence",
+    "dependsOn": ["Build Flight SW", "Run Flight SW"]
+},
+
+{
+    "label": "Build Clean Flight SW",
+    "type": "shell",
+    "command": "${workspaceFolder}/run.sh build",
+    "group": {
+        "kind": "build",
+        "isDefault": true
+    }
+}
+
+    ]
+}
