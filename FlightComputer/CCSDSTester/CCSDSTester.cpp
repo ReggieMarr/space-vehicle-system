@@ -122,7 +122,7 @@ void CCSDSTester::PING_cmdHandler(const FwOpcodeType opCode, const U32 cmdSeq) {
 
   U32 dfltMessage = 0x9944fead;
   com.resetSer();
-  U8 packetType = Fw::ComPacket::ComPacketType::FW_PACKET_COMMAND;
+  Fw::ComPacket::ComPacketType packetType = Fw::ComPacket::ComPacketType::FW_PACKET_COMMAND;
   com.serialize(packetType);
   com.serialize(dfltMessage);
 
@@ -142,7 +142,6 @@ void CCSDSTester::MESSAGE_cmdHandler(const FwOpcodeType opCode,
   com.resetSer();
   // U32 starter = 0xFFFF;
   // com.serialize(starter);
-  // Fw::ComPacket::ComPacketType_t packetType = Fw::ComPacket::ComPacketType_e::FW_PACKET_FILE;
   U8 packetType = Fw::ComPacket::ComPacketType::FW_PACKET_FILE;
   com.serialize(packetType);
   com.serialize(str1);

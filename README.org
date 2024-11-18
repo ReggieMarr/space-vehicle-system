@@ -14,8 +14,8 @@ The project is containerized with Docker, ensuring compatibility across various 
 **** Clone the repo and submodules
 #+BEGIN_SRC bash
 #Get the repo
-git clone git@github.com:ReggieMarr/MBSE_FSW.git
-cd MBSE_FSW
+git clone git@github.com:ReggieMarr/space-vehicle-system.git
+cd space-vehicle-system
 #pull in the submodules
 git submodule update --init --recursive
 #+END_SRC
@@ -28,57 +28,63 @@ Commands are summarized as such:
 @startuml
 skinparam actorStyle awesome
 actor User
-
-rectangle "" {
+rectangle "Commands" {
   [Docker Build]
   [Project Build]
   [Container Inspection]
-  [FlightSoftware Execution]
-  [GDS Execution]
-  [Dependency Generation]
+  [Execution Commands]
+  note right of [Execution Commands]
+    exec command with subcommands:
+    - FlightComputer
+    - gds
+    - test
+  end note
   [Environment Teardown]
   [Update]
   [Sync]
-  [Test]
   [Topology Visualization]
 }
-
 cloud "Docker Environment" {
   [Docker Image]
   [FSW Container]
   [GDS Container]
 }
-
 database "Host File System" {
   folder "Project Files"
   folder "Build Artifacts"
-  folder "Dependencies"
 }
-
 User --> [Docker Build] : docker-build
 User --> [Project Build] : build
 User --> [Container Inspection] : inspect
-User --> [FlightSoftware Execution] : exec
-User --> [GDS Execution] : gds
-User --> [Dependency Generation] : gen-deps
+User --> [Execution Commands] : exec
+[Execution Commands] --> [FlightComputer Execution]
+[Execution Commands] --> [GDS Execution]
+[Execution Commands] --> [Test Execution]
 User --> [Environment Teardown] : teardown
 User --> [Update] : update
 User --> [Sync] : sync
-User --> [Test] : test
 User --> [Topology Visualization] : topology
 
 [Docker Build] --> [Docker Image] : Creates/Updates
 [Project Build] --> [Build Artifacts] : Generates
 [Container Inspection] --> [FSW Container] : Provides shell
-[FlightSoftware Execution] --> [FSW Container] : Runs FlightSoftware
+[FlightComputer Execution] --> [FSW Container] : Runs FlightSoftware
 [GDS Execution] --> [GDS Container] : Runs GDS
-[Dependency Generation] --> [Dependencies] : Extracts
+[Test Execution] --> [GDS Container] : Runs tests
 [Environment Teardown] --> [Docker Environment] : Removes containers
 [Update] --> [Docker Image] : Pulls latest images
 [Sync] --> [Docker Image] : Pushes local changes
-[Test] --> [GDS Container] : Runs tests
 [Topology Visualization] --> [Project Files] : Generates topology diagram
 
+note right of User
+  Available flags:
+  --daemon
+  --debug
+  --as-host
+  --clean
+  --host-thread-ctrl
+  --help
+end note
 @enduml
 #+end_src
 
@@ -99,29 +105,25 @@ Options:
   --daemon             Run as daemon
   --debug              Enable debug mode
   --as-host            Run as host
-  --persist            Ignore startup issues and keep running
-  --local              Use local environment
   --clean              Clean build
-  --host-thread-ctl    Set thread control
+  --host-thread-ctl    Set thread control for running without sudo (this itself requires sudo)
   --help               Show this help message
-
 Commands:
+  update               Build the Docker image
   docker-build         Build the Docker image
   build                Build the project
   inspect [container]  Inspect a container
-  exec                 Execute the FlightComputer
-  gds                  Run the GDS
-  update               Pulls the latest version of docker images
-  sync                 Pushes local changes and updates docker images
-  gen-deps             Generate dependencies (for editor mapping)
+  exec gds             Run the GDS
+  exec FlightComputer  Run the Flight Software
+  exec test            Run integration tests against the Flight Software
+  update               Pull latest Docker images
   teardown             Tear down the environment
-  test                 Run tests
   topology             Generate topology visualization
 #+END_SRC
 
 One use case is building and running the deployment, this can be done like so (note building clean is only necessary when making significant changes):
 #+begin_src bash
-❯ ./run.sh build --clean && ./run.sh exec --local
+❯ ./run.sh build --clean && ./run.sh exec FlightComputer
 #+end_src
 
 This then provides a web based ui that can be viewed by visiting http://127.0.0.1:5000/#Channels on your preferred web browser.
@@ -129,7 +131,6 @@ This then provides a web based ui that can be viewed by visiting http://127.0.0.
 *Note* this example runs a standard version of ~fprime-gds~ and deploys it locally.
 More information about the Web UI can be found [[https://nasa.github.io/fprime/UsersGuide/gds/gds-introduction.html][here]].
 *** Additional Tips
-   - Combine flags: ~./run.sh --clean --debug exec~
    - Script uses environment variables from .env file in the same directory
    - Use ~--daemon~ flag to run processes in the background
    - Use ~--host-thread-ctl~ when building for non-sudo host execution thread control
@@ -177,3 +178,92 @@ IN_FLIGHT --> IDLE: TERMINATE
 #+RESULTS:
 [[file:.org_out/FlightSM.svg]]
 
+
+* CCSDS support
+
+** Implementation Strategy
+*** Data Categorization and Protocol Mapping
+| FPrime Data Type | Characteristics         | CCSDS Protocol | Service | Virtual Channel Usage        |
+|------------------+-------------------------+----------------+---------+------------------------------|
+| Telemetry        | Continuous, Rate-based  | TM Space Link  | VCAS    | Organized by rate groups     |
+| Commands         | Discrete, Requires ACK  | TC Space Link  | VCAS    | Dedicated command channel    |
+| Events           | Discrete, One-way       | TC Space Link  | VCAS    | Shared notification channel  |
+| Parameters       | Discrete, Configuration | TC Space Link  | VCAS    | Shared configuration channel |
+
+*** Communication Pipeline Overview
+**** Downlink Path (Space to Ground)
+- Telemetry frames organized by rate groups into virtual channels
+- Events and parameter updates multiplexed into respective TC virtual channels
+- Uni-directional RF link carries all downlink traffic
+- UDP link (during testing) provides same structure with added ACK capability
+
+**** Uplink Path (Ground to Space, UDP Only)
+- Commands transmitted via dedicated TC virtual channel
+- Command acknowledgment mechanism implemented for UDP testing
+- Retransmission logic handles lost commands during UDP communication
+
+*** Protocol Details
+**** TM Space Link Implementation
+- VCAS service provides dedicated bandwidth per rate group
+- Frame size optimization based on rate group proportions
+- Sequence tracking at frame level
+- No store-and-forward implementation
+
+**** TC Space Link Implementation
+- Virtual channels segregate different data types
+- Command channel includes verification and retransmission logic
+- Events and parameters share notification/configuration channels
+- Frame sequence maintained at protocol level
+
+*** Testing Considerations
+- UDP link maintains CCSDS structure consistency
+- Command acknowledgments active only during UDP operations
+- RF link operates in simplified uni-directional mode
+- No store-and-forward mechanism implemented
+
+*** Key Design Decisions
+- VCAS chosen for simplified bandwidth allocation
+- Virtual channel organization prioritizes data type separation
+- Frame-level sequence tracking sufficient for requirements
+- UDP testing preserves operational protocol structure
+
+** Communication Topology Comparison
+*** Legacy
+[[file:.org_out/LegacyDeploymentLink.png]]
+*** New
+[[file:.org_out/NewDeploymentLink.png]]
+** Arch Layout
+
+#+BEGIN_SRC plantuml :file .org_out/revisedCommsArch.jpg
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Container.puml
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Component.puml
+title Updated Comms Architecture
+
+Container_Boundary(obc, "OBC", "Flight Software Deployment") {
+        Component(eventLogger, "Event Logger", "Svc.ActiveLogger")
+        Component(tlmChan, "Tlm Chan", "Svc.TlmChan")
+        Component(obcPacketFramer, "Packet Framer", "Svc.PacketFramer")
+        Component(obcMessageFramer, "Message Framer", "Svc.Framer")
+        Component(obcDeframer, "Deframer", "Svc.Deframer")
+        Component(obcPacketAccumulator, "Packet Accumulator", "Svc.PacketAccumulator")
+        Component(obcFrameAccumulator, "Frame Accumulator", "Svc.FrameAccumulator")
+}
+
+Component(commLink, "Communications Link", "Transport Layer")
+
+Container_Boundary(groundControl, "Ground Dep", "Ground Software Deployment") {
+        Component(cspInterface, "CSP/CCSDS Interface", "Protocol adapter")
+        Component(actuator, "Actuator Module", "Control execution")
+        Component(daq, "Data acquisition Module", "Collects data via drivers")
+}
+
+
+' External Relations
+Rel(obc, rioNode, "Commands", "CSP over UART/CAN")
+Rel(obc, rioNode, "Polls", "CSP over UART/CAN")
+Rel(daq, pressure, "Reads", "ADC")
+Rel(daq, temperature, "Reads", "SPI")
+Rel(actuator, valve, "Controls", "Digital")
+Rel(actuator, heater, "Controls", "PWM")
+@enduml
+#+end_src

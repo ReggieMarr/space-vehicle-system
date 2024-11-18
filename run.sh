@@ -36,8 +36,10 @@ Commands:
   inspect [container]  Inspect a container
   exec gds             Run the GDS
   exec FlightComputer  Run the Flight Software
+  exec test            Run integration tests against the Flight Software
   update               Pull latest Docker images
   teardown             Tear down the environment
+  topology             Generate topology visualization
 EOF
 }
 
@@ -46,11 +48,13 @@ AS_HOST=0
 DAEMON=0
 DEBUG=0
 SET_THREAD_CTRL=0
+FORCE=0
 
 # Process flags
 for arg in "$@"; do
   case $arg in
     --daemon) DAEMON=1 ;;
+    --force) FORCE=1 ;;
     --debug) DEBUG=1 ;;
     --as-host) AS_HOST=1 ;;
     --clean) CLEAN=1 ;;
@@ -104,7 +108,11 @@ case $1 in
     ;;
 
   "update")
-    exec_cmd "git submodule sync && git submodule update --init --recursive && docker pull $FSW_IMG"
+    PULL_CMD="git pull"
+    [ "$FORCE" -eq 1 ] && PULL_CMD="git fetch -a && git reset --hard origin/$(git rev-parse --abbrev-ref HEAD)"
+    PULL_CMD+=" && git submodule sync && git submodule update --init --recursive"
+
+    exec_cmd "$PULL_CMD"
     ;;
 
   "docker-build")
@@ -114,8 +122,15 @@ case $1 in
         [[ $REPLY =~ ^[Yy]$ ]] || { echo "Build cancelled."; exit 1; }
     fi
 
-    if [ "$(git rev-parse HEAD)" != "$(git ls-remote $(git rev-parse --abbrev-ref @{u} | sed 's/\// /g') | cut -f1)" ]; then
-        read -p "Current commit not pushed. Continue? (y/n) " -n 1 -r
+    # Fetch from remote to ensure we have latest refs
+    git fetch -q origin
+
+    # Get current commit hash
+    CURRENT_COMMIT=$(git rev-parse HEAD)
+
+    # Check if current commit exists in any remote branch
+    if ! git branch -r --contains "$CURRENT_COMMIT" | grep -q "origin/"; then
+        read -p "Current commit not found in remote repository. Continue? (y/n) " -n 1 -r
         echo
         [[ $REPLY =~ ^[Yy]$ ]] || { echo "Build cancelled."; exit 1; }
     fi
@@ -178,6 +193,12 @@ case $1 in
       exit 1
       ;;
     esac
+    ;;
+
+  "topology")
+    # NOTE set working dir when we link this to a CI/CD
+    CMD="fprime-util visualize -p ${DEPLOYMENT_ROOT}/Top -r ${DEPLOYMENT_ROOT}"
+    run_docker_compose "fsw bash -c \"$CMD\""
     ;;
 
   "teardown")

@@ -63,7 +63,7 @@ core
 *TopologyAppID.csv
 *TopologyAppAi_IDTableLog.txt
 
-.vscode
+# .vscode
 py_dict
 .settings
 build-fprime-automatic*
