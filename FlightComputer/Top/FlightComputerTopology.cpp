@@ -1,6 +1,8 @@
 #include "FlightComputer/Top/FppConstantsAc.hpp"
+#include "FpConfig.h"
 #include "Fw/Logger/Logger.hpp"
-#include "Svc/FramingProtocol/CCSDSProtocol.hpp"
+#include "Svc/FramingProtocol/CCSDSProtocols/TMSpaceDataLink.hpp"
+#include "Svc/FramingProtocol/CCSDSProtocols/TCSpaceDataLink.hpp"
 
 // Provides access to autocoded functions
 #include <FlightComputer/Top/FlightComputerTopologyAc.hpp>
@@ -12,7 +14,6 @@
 #include <Os/Console.hpp>
 #include <Svc/FramingProtocol/FprimeProtocol.hpp>
 #include <Svc/FrameAccumulator/FrameDetector/FprimeFrameDetector.hpp>
-#include <Svc/FrameAccumulator/FrameDetector/CCSDSFrameDetector.hpp>
 
 // Used for 1Hz synthetic cycling
 #include <Os/Mutex.hpp>
@@ -32,8 +33,16 @@ Fw::MallocAllocator mallocator;
 // The reference topology uses the F´ packet protocol when communicating with the ground and therefore uses the F´
 // framing and deframing implementations.
 Svc::FprimeFraming fprimeFraming;
-Svc::TCSpaceDataLinkFraming tcFraming;
-Svc::TMSpaceDataLinkFraming tmFraming;
+Svc::TCSpaceDataLink tcFraming;
+TMSpaceDataLink::MissionPhaseParameters_t missionParams{
+    0x00,   // transferFrameVersion
+    CCSDS_SCID,    // spaceCraftId
+    false,  // hasOperationalControlFlag
+    false,  // hasSecondaryHeader
+    true    // isSyncFlagEnabled
+};
+FwSizeType dataFieldSize = Svc::TM_DATA_FIELD_DFLT_SIZE;
+Svc::TMSpaceDataLinkProtocol tmSpaceDataLink(missionParams, dataFieldSize);
 Svc::FrameDetectors::FprimeFrameDetector fprimeFrameDetector;
 Svc::FrameDetectors::TMSpaceDataLinkDetector ccsdsFrameDetector;
 
@@ -122,7 +131,7 @@ void configureTopology() {
 
     // Framer and Deframer components need to be passed a protocol handler
     framer.setup(fprimeFraming);
-    ccsdsFramer.setup(tmFraming);
+    ccsdsFramer.setup(tmSpaceDataLink);
     // This sets up deframing
     fprimeFrameAccumulator.configure(fprimeFrameDetector, 1, mallocator, 2048);
     ccsdsFrameAccumulator.configure(ccsdsFrameDetector, 2, mallocator, 2048);

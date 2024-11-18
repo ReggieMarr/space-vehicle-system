@@ -81,9 +81,11 @@ void CCSDSTester::seqCmdBuff_handler(NATIVE_INT_TYPE portNum,
   }
   Fw::Logger::log("\n");
 
-  FW_ASSERT(isConnected_bufferDeallocate_OutputPort(portNum));
-  Fw::Buffer buff(data.getBuffAddr(), data.getBuffCapacity());
-  bufferDeallocate_out(portNum, buff);
+  // TODO currently we just allocate on the stack for testing
+  // Add an allocator to this component and then use this to deallocate
+  // FW_ASSERT(isConnected_bufferDeallocate_OutputPort(portNum));
+  // Fw::Buffer buff(data.getBuffAddr(), data.getBuffCapacity());
+  // bufferDeallocate_out(portNum, buff);
 }
 
 void CCSDSTester::bufferSendIn_handler(const NATIVE_INT_TYPE portNum,
@@ -117,8 +119,9 @@ void CCSDSTester::PING_cmdHandler(const FwOpcodeType opCode, const U32 cmdSeq) {
     this->drvReady_out(0);
     isConnected = true;
   } else {
-    Fw::Logger::log("Not Ready");
+    Fw::Logger::log("CCSDS Tester Not Ready !!\n");
   }
+  Fw::ComBuffer com;
 
   U32 dfltMessage = 0x9944fead;
   com.resetSer();
