@@ -180,7 +180,170 @@ IN_FLIGHT --> IDLE: TERMINATE
 
 
 * CCSDS support
+CCSDS represents a family of protocols created with aim to standardize communications between space entities across the OSI communication layers.
+The protocols are well defined (with [[https://public.ccsds.org/Publications/AllPubs.aspx][an extensive catalogue of spec docs]]) and can used in combination with, or independent of one another.
 
+The driving factor here is the need to provide a robust communications pipeline which adheres to F' conventions, provides an interface that external users may easily utilize and is capable of providing a multiplexed stream of system data generated at varying rates, conditions and in a wide range of formats (most notably video data and telemetry).
+Since this will be integrated within resource constrained systems we want to minimize the complexity and bandwidth utilization.
+For this reason this pipeline's development mostly focuses on the data link layer implemented to be compatible with F' with less support for a highly flexible API.
+
+** Requirements
+The components implemented in order to support CCSDS is contained in what will referred to as the "Space Link Pipeline" (SLP).
+The following high level requirements serve to illustrate the related development goals and driving factors:
+
++ The SLP shall receive and propogate the following data types:
+  + Telemetry - Continuously generated data originating from sensor reading, process execution, or system state.
+  + Events - Spontaneously generated notifications.
+  + Commands - Spontaneously generated requests to induce desired behaviour.
+  + Parameters - Spontaneously generated requests to alter the systems configuration.
+  + Video - A unique form of telemetry containing image data.
++ The SLP shall distinguish between data streams of the previously mentioned data types.
++ The SLP shall support data stream multiplexing to optimize bandwidth utilization.
++ The SLP shall transfer data in such a way that accounts for data transmission which may be weak and/or unreliable (e.g. RF links).
++ The SLP shall support both bi-directional and uni-directional links.
++ The SLP shall support missions for which access to bi-directional vs uni-directional links is not constant.
++ The SLP shall transfer data in a manner that considers performance needs in the following order.
+  1. Computational processing which does not meaningfully impact mission specific operations.
+  2. Memory utilization which does not meaningfully impact mission specific operations.
+  3. Maximize bitrate.
+  4. Minimize latency.
++ The SLP shall provide an interface which external parties may comprehend, interact with and adapt to based on well defined documentation and specifications.
++ The SLP shall provide telemetry/event packetization to the YAMCS operations control software for the live display of system data.
++ The SLP shall provide video packetization for the live visual representation of the system during mission execution.
++ The SLP implementation components developed for F' inclusion shall be developed according to F' coding standards and contributor guidelines.
+
+** Theory of Operation - TM Space Data Link
+*** Services and Protocol Functions
+The TM Space Data Link spec recommendations make reference to ~Services~ and ~Functions~.
+Essentially the description of the ~Functions~ conveys the separation of concerns and the procedural construction and propagation of message buffers (referred to as transfer frames).
+
+The following excerpt from CCSDS 132.0-B-3 2.3.2 illustrates this with more details found in the source.
+
+[[file:.org_out/TMSpaceDataLink_ProtocolEntity_Sending_Functions.png]]
+
+[[file:.org_out/TMSpaceDataLink_ProtocolEntity_Channel_Tree_Description.png]]
+
+[[file:.org_out/TMSpaceDataLink_ProtocolEntity_Channel_Tree_Diagram.png]]
+
+*** Sending Procedure Protocol
+In an effort to describe how the functional components and services are leveraged to receive, encapsulate and propogate user data the following high level example is used with the following restrictions:
+
++ Propagation of F' telemetry channel which contains unpacketized telem data through the protocol entity functions generated at a single rate.
++ This sequence uses a single virtual, master, and physical channel to create the transfer frames without operational control or secondary header fields.
++ The VCA service is used instead of the VCP so the telem data is just placed into a data field with padding.
++ Virtual channels multiplexing is just handling the combination of frames one channel and placing them into a queue.
++ No Master Channel multiplexing is performed.
++ All frames generation calculates the CRC and inserts it into each transfer frames error control field.
+
++ **Telemetry Data Reception:**
+  - Telemetry data, tied to various rate groups, is propagated to the `ProtocolEntity` via a `UserComIn_handler`.
+
++ **Service Processing and Virtual Channel Frame Generation:**
+  - The `VirtualChannelSender` processes the telemetry data using registered services (e.g., VCP or VCA).
+  - The `PacketProcessing_handler` segments and blocks the data as required (if the VCP service exists which it doesn't right now).
+  - The `VirtualChannelGeneration_handler` constructs a Virtual Channel Transfer Frame:
+    - Adds the Primary Header with fields like VCID and Frame Count but leaves Master channel frames aside.
+    - Optionally includes the Frame Secondary Header (FSH) or Operational Control Field (OCF) if the related service exist (again for my example they don't right now).
+    - This is all done by the required service: Virtual Channel Frame (VCF) service.
+
++ **Virtual Channel Multiplexing:**
+  - The `MasterChannelSender` invokes the `VirtualChannelMultiplexing_handler` to combine Transfer Frames from multiple Virtual Channels (VCs) associated with the Master Channel.
+  - Frames are multiplexed according to a predefined priority or scheduling scheme as identified in the management parameters.
+
++ **Master Channel Frame Generation:**
+  - The `MasterChannelGeneration_handler` processes the multiplexed VC frames:
+    - Sets the Master Channel Frame Count in the Primary Header.
+    - Optionally includes the Frame Secondary Header (FSH) or Operational Control Field (OCF) if the related service exist (again for my example they don't right now).
+
++ **Master Channel Multiplexing:**
+  - The `PhysicalChannelSender` invokes the `MasterChannelMultiplexing_handler` to combine Transfer Frames from multiple Master Channels (MCs) (if applicable).
+  - Frames are ordered and queued for transmission.
+
++ **All Frames Generation:**
+  - The `AllFramesGeneration_handler` finalizes the frames:
+    - Adds Frame Error Control Field (FECF) for error detection if enabled.
+    - Marks idle frames as needed when no data is available.
+
++ **Transmission:**
+  - Completed frames are transmitted over the Physical Channel at a constant rate, ensuring compliance with protocol timing requirements.
+
+The following sequence diagram illustrates the procedure like so:
+#+BEGIN_SRC plantuml :tangle ./FlightSoftware/FlightSequencer/ccsds_tm_datalink_sequence.plantuml :exports both :file .org_out/ccsds_tm_datalink_sequence.svg
+@startuml
+participant "Protocol Entity" as ProtocolEntity
+participant "Virtual Channel Handler" as VirtualChannelHandler
+participant "Master Channel Handler" as MasterChannelHandler
+participant "Physical Channel Handler" as PhysicalChannelHandler
+
+' Telemetry Data Reception
+ProtocolEntity -> ProtocolEntity : receiveTelemetryData(rawTelemetryData)
+note right
+Telemetry data tied to rate groups is received
+and propagated to the Protocol Entity.
+end note
+
+' Virtual Channel Processing and Frame Generation
+ProtocolEntity -> VirtualChannelHandler : processTelemetryData(serviceDataUnit)
+note right
+Processes telemetry data:
+- In this example, VCA service is used.
+- Telemetry data is placed into the data field with padding.
+end note
+
+VirtualChannelHandler -> VirtualChannelHandler : generateVirtualChannelFrame(serviceDataUnit)
+note right
+Creates a Virtual Channel Transfer Frame:
+- Adds Primary Header with VCID, Frame Count.
+- Leaves optional fields (FSH, OCF) out as not used.
+end note
+
+' Virtual Channel Multiplexing
+VirtualChannelHandler -> MasterChannelHandler : enqueueTransferFrame(virtualChannelFrame)
+note right
+Transfers frames from a single Virtual Channel
+to the Master Channel queue.
+end note
+
+' Master Channel Frame Handling
+MasterChannelHandler -> MasterChannelHandler : processMasterChannelFrame(virtualChannelFrame)
+note right
+Processes Virtual Channel Frames:
+- Adds Master Channel Frame Count to Primary Header.
+- Skips optional fields (FSH, OCF).
+end note
+
+' Master Channel Multiplexing
+MasterChannelHandler -> PhysicalChannelHandler : enqueueForTransmission(masterChannelFrame)
+note right
+Queues frames from a single Master Channel
+for transmission. No multiplexing needed
+as there is only one Master Channel in use.
+end note
+
+' Finalization and Transmission
+PhysicalChannelHandler -> PhysicalChannelHandler : finalizeTransferFrame(masterChannelFrame)
+note right
+Finalizes frame:
+- Calculates CRC and inserts it into the Frame Error Control Field (FECF).
+- Marks idle frames if no data is available.
+end note
+
+PhysicalChannelHandler -> PhysicalChannelHandler : transmitTransferFrame(finalizedFrame)
+note right
+Sends completed frames over the Physical Channel
+at a constant rate to meet protocol timing.
+end note
+@enduml
+#+END_SRC
+
+#+RESULTS:
+[[file:.org_out/ccsds_tm_datalink_sequence.svg]]
+
+** Communication Topology Comparison
+*** Legacy
+[[file:.org_out/LegacyDeploymentLink.png]]
+*** New
+[[file:.org_out/NewDeploymentLink.png]]
 ** Implementation Strategy
 *** Data Categorization and Protocol Mapping
 | FPrime Data Type | Characteristics         | CCSDS Protocol | Service | Virtual Channel Usage        |
@@ -203,11 +366,16 @@ IN_FLIGHT --> IDLE: TERMINATE
 - Retransmission logic handles lost commands during UDP communication
 
 *** Protocol Details
+NOTE see managed parameters, note that by leveraging the mux scheme into function parameters we can implicitly mux and wrap all channels into one frame
 **** TM Space Link Implementation
 - VCAS service provides dedicated bandwidth per rate group
 - Frame size optimization based on rate group proportions
 - Sequence tracking at frame level
-- No store-and-forward implementation
+
+***** Synchronization and channel coding
+In order to properly configure the various channels we consult the Synchronization and channel coding mechanisms described in CCSDS 131.0-B-5
+
+[[file:.org_out/tm_sync_and_channel_coding_layered_model.png]]
 
 **** TC Space Link Implementation
 - Virtual channels segregate different data types
@@ -215,55 +383,9 @@ IN_FLIGHT --> IDLE: TERMINATE
 - Events and parameters share notification/configuration channels
 - Frame sequence maintained at protocol level
 
-*** Testing Considerations
-- UDP link maintains CCSDS structure consistency
-- Command acknowledgments active only during UDP operations
-- RF link operates in simplified uni-directional mode
-- No store-and-forward mechanism implemented
-
 *** Key Design Decisions
 - VCAS chosen for simplified bandwidth allocation
 - Virtual channel organization prioritizes data type separation
 - Frame-level sequence tracking sufficient for requirements
 - UDP testing preserves operational protocol structure
 
-** Communication Topology Comparison
-*** Legacy
-[[file:.org_out/LegacyDeploymentLink.png]]
-*** New
-[[file:.org_out/NewDeploymentLink.png]]
-** Arch Layout
-
-#+BEGIN_SRC plantuml :file .org_out/revisedCommsArch.jpg
-!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Container.puml
-!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Component.puml
-title Updated Comms Architecture
-
-Container_Boundary(obc, "OBC", "Flight Software Deployment") {
-        Component(eventLogger, "Event Logger", "Svc.ActiveLogger")
-        Component(tlmChan, "Tlm Chan", "Svc.TlmChan")
-        Component(obcPacketFramer, "Packet Framer", "Svc.PacketFramer")
-        Component(obcMessageFramer, "Message Framer", "Svc.Framer")
-        Component(obcDeframer, "Deframer", "Svc.Deframer")
-        Component(obcPacketAccumulator, "Packet Accumulator", "Svc.PacketAccumulator")
-        Component(obcFrameAccumulator, "Frame Accumulator", "Svc.FrameAccumulator")
-}
-
-Component(commLink, "Communications Link", "Transport Layer")
-
-Container_Boundary(groundControl, "Ground Dep", "Ground Software Deployment") {
-        Component(cspInterface, "CSP/CCSDS Interface", "Protocol adapter")
-        Component(actuator, "Actuator Module", "Control execution")
-        Component(daq, "Data acquisition Module", "Collects data via drivers")
-}
-
-
-' External Relations
-Rel(obc, rioNode, "Commands", "CSP over UART/CAN")
-Rel(obc, rioNode, "Polls", "CSP over UART/CAN")
-Rel(daq, pressure, "Reads", "ADC")
-Rel(daq, temperature, "Reads", "SPI")
-Rel(actuator, valve, "Controls", "Digital")
-Rel(actuator, heater, "Controls", "PWM")
-@enduml
-#+end_src

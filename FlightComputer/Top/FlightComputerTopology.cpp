@@ -1,8 +1,8 @@
 #include "FlightComputer/Top/FppConstantsAc.hpp"
 #include "FpConfig.h"
 #include "Fw/Logger/Logger.hpp"
-#include "Svc/FramingProtocol/CCSDSProtocols/TMSpaceDataLink.hpp"
-#include "Svc/FramingProtocol/CCSDSProtocols/TCSpaceDataLink.hpp"
+#include "Svc/FramingProtocol/CCSDSProtocols/TMSpaceDataLink/ProtocolInterface.hpp"
+// #include "Svc/FramingProtocol/CCSDSProtocols/TCSpaceDataLink.hpp"
 
 // Provides access to autocoded functions
 #include <FlightComputer/Top/FlightComputerTopologyAc.hpp>
@@ -33,7 +33,7 @@ Fw::MallocAllocator mallocator;
 // The reference topology uses the F´ packet protocol when communicating with the ground and therefore uses the F´
 // framing and deframing implementations.
 Svc::FprimeFraming fprimeFraming;
-Svc::TCSpaceDataLink tcFraming;
+// Svc::TCSpaceDataLink tcFraming;
 TMSpaceDataLink::MissionPhaseParameters_t missionParams{
     0x00,   // transferFrameVersion
     CCSDS_SCID,    // spaceCraftId
