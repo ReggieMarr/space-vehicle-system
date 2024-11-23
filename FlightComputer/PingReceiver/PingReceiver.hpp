@@ -10,7 +10,7 @@
 
 namespace FlightComputer {
 
-  typedef PingReceiverComponentImpl PingReceiver;
+typedef PingReceiverComponentImpl PingReceiver;
 
 }
 

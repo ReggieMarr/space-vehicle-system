@@ -1,12 +1,12 @@
-#include "FlightComputer/Top/FppConstantsAc.hpp"
 #include "FlightComputer/Top/FlightComputerTopologyDefs.hpp"
+#include "FlightComputer/Top/FppConstantsAc.hpp"
 
 namespace FlightComputer {
 
-  namespace Allocation {
+namespace Allocation {
 
-    Fw::MallocAllocator mallocator;
-
-  }
+Fw::MallocAllocator mallocator;
 
 }
+
+} // namespace FlightComputer

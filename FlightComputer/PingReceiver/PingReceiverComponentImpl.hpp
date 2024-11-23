@@ -17,49 +17,40 @@
 
 namespace FlightComputer {
 
-  class PingReceiverComponentImpl :
-    public PingReceiverComponentBase
-  {
+class PingReceiverComponentImpl : public PingReceiverComponentBase {
 
-    public:
+public:
+  // ----------------------------------------------------------------------
+  // Construction, initialization, and destruction
+  // ----------------------------------------------------------------------
 
-      // ----------------------------------------------------------------------
-      // Construction, initialization, and destruction
-      // ----------------------------------------------------------------------
+  //! Construct object PingReceiver
+  //!
+  PingReceiverComponentImpl(const char *const compName /*!< The component name*/
+  );
 
-      //! Construct object PingReceiver
-      //!
-      PingReceiverComponentImpl(
-          const char *const compName /*!< The component name*/
-      );
+  //! Destroy object PingReceiver
+  //!
+  ~PingReceiverComponentImpl();
 
-      //! Destroy object PingReceiver
-      //!
-      ~PingReceiverComponentImpl();
+PRIVATE:
+  // ----------------------------------------------------------------------
+  // Handler implementations for user-defined typed input ports
+  // ----------------------------------------------------------------------
 
-    PRIVATE:
+  //! Handler implementation for PingIn
+  //!
+  void PingIn_handler(const NATIVE_INT_TYPE portNum, /*!< The port number*/
+                      U32 key /*!< Value to return to pinger*/
+  );
 
-      // ----------------------------------------------------------------------
-      // Handler implementations for user-defined typed input ports
-      // ----------------------------------------------------------------------
+  void PR_StopPings_cmdHandler(FwOpcodeType opCode, /*!< The opcode*/
+                               U32 cmdSeq /*!< The command sequence number*/
+  );
 
-      //! Handler implementation for PingIn
-      //!
-      void PingIn_handler(
-          const NATIVE_INT_TYPE portNum, /*!< The port number*/
-          U32 key /*!< Value to return to pinger*/
-      );
-
-      void PR_StopPings_cmdHandler(
-              FwOpcodeType opCode, /*!< The opcode*/
-              U32 cmdSeq /*!< The command sequence number*/
-          );
-
-      bool m_inhibitPings;
-      U32 m_pingsRecvd;
-
-
-    };
+  bool m_inhibitPings;
+  U32 m_pingsRecvd;
+};
 
 } // end namespace FlightComputer
 

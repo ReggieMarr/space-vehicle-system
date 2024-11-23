@@ -125,11 +125,13 @@ void CCSDSTester::PING_cmdHandler(const FwOpcodeType opCode, const U32 cmdSeq) {
 
   U32 dfltMessage = 0x9944fead;
   com.resetSer();
-  Fw::ComPacket::ComPacketType packetType = Fw::ComPacket::ComPacketType::FW_PACKET_COMMAND;
+  Fw::ComPacket::ComPacketType packetType =
+      Fw::ComPacket::ComPacketType::FW_PACKET_COMMAND;
   com.serialize(packetType);
   com.serialize(dfltMessage);
 
   PktSend_out(0, com, 0);
+
   // cmdResponse_out(opCode, cmdSeq, Fw::CmdResponse::OK);
 }
 void CCSDSTester::MESSAGE_cmdHandler(const FwOpcodeType opCode,
@@ -142,10 +144,13 @@ void CCSDSTester::MESSAGE_cmdHandler(const FwOpcodeType opCode,
     Fw::Logger::log("Not Ready");
   }
   Fw::ComBuffer com;
+
   com.resetSer();
+
   // U32 starter = 0xFFFF;
   // com.serialize(starter);
   U8 packetType = Fw::ComPacket::ComPacketType::FW_PACKET_FILE;
+
   com.serialize(packetType);
   com.serialize(str1);
 
@@ -154,16 +159,24 @@ void CCSDSTester::MESSAGE_cmdHandler(const FwOpcodeType opCode,
   // cmdResponse_out(opCode, cmdSeq, Fw::CmdResponse::OK);
 }
 
-Drv::SendStatus CCSDSTester::drvSend_handler(FwIndexType portNum, Fw::Buffer & buffer) {
+Drv::SendStatus CCSDSTester::drvSend_handler(FwIndexType portNum,
+                                             Fw::Buffer &buffer) {
 
   Types::CircularBuffer circBoi(buffer.getData(), buffer.getSize());
-  Fw::SerializeStatus stat = circBoi.serialize(buffer.getData(), buffer.getSize());
+  Fw::SerializeStatus stat =
+      circBoi.serialize(buffer.getData(), buffer.getSize());
   circBoi.print();
   U8 btt = 0;
   circBoi.peek(btt, 0);
-  Fw::Logger::log("circBoi %x %d alloc %d cap %d\n", btt, stat, circBoi.get_allocated_size(), circBoi.get_capacity());
+  Fw::Logger::log("circBoi %x %d alloc %d cap %d\n", btt, stat, "THis is bad",
+                  circBoi.get_allocated_size(), circBoi.get_capacity());
 
-  // Svc::FrameDetector::Status status = Svc::FrameDetector::Status::FRAME_DETECTED;
+  Fw::Logger::log("I dont now");
+
+  circBoi.print();
+
+  // Svc::FrameDetector::Status status =
+  // Svc::FrameDetector::Status::FRAME_DETECTED;
   // Svc::FrameDetectors::TMSpaceDataLinkDetector ccsdsFrameDetector;
 
   // FwSizeType size_out = 0;

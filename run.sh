@@ -1,7 +1,7 @@
 #!/bin/bash
-source .env
 export SCRIPT_DIR="$(cd "$(dirname "$0")"; pwd -P)"
 cd "$SCRIPT_DIR"
+source .env
 set -e
 set -o pipefail
 
@@ -33,6 +33,7 @@ Options:
 Commands:
   docker-build         Build the Docker image
   build                Build the project
+  format               Leverage fprime-util's clang-format to format project
   inspect [container]  Inspect a container
   exec gds             Run the GDS
   exec FlightComputer  Run the Flight Software
@@ -80,7 +81,10 @@ exec_cmd() {
 
 run_docker_compose() {
     local cmd="$1"
-    local flags="-it --rm"
+    # Always kill the container after executing the command
+    # by default run the command with an interactive tty
+    local flags="--rm "
+    local flags+="${2:- -it}"
     flags+=" --user $(id -u):$(id -g)"
 
     [ "$DAEMON" -eq 1 ] && flags="-i -d"
@@ -139,6 +143,59 @@ case $1 in
     [ "$CLEAN" -eq 1 ] && CMD+=" --no-cache"
     CMD+=" --build-arg GIT_COMMIT=$(git rev-parse HEAD) --build-arg GIT_BRANCH=$(git rev-parse --abbrev-ref HEAD)"
     exec_cmd "$CMD"
+    ;;
+
+  "format")
+    if [[ "$2" == *.fpp ]]; then
+      container_file="${2/$SCRIPT_DIR/$FSW_WDIR}"
+      echo "Formatting FPP file: $container_file"
+      cmd="fpp-format $container_file"
+      # Create a temporary marker that's unlikely to appear in normal code
+      marker="@ COMMENT_PRESERVE@"
+      # Chain the commands:
+      # 1. Transform comments to temporary annotations
+      # 2. Run fpp-format
+      # 3. Transform back to comments
+      # 4. Write back to the original file
+    tmp_file="${container_file/.fpp/_tmp.fpp}"
+
+    # Create a multi-line command with error checking
+    read -r -d '' cmd <<EOF
+    set -e  # Exit on any error
+
+    # Create backup
+    cp "$container_file" "${container_file}.bak"
+
+    # Attempt formatting pipeline
+    if sed 's/^\\([ ]*\\)#/\\1${marker}#/' "$container_file" \
+       | fpp-format \
+       | sed 's/^\\([ ]*\\)${marker}#/\\1#/' > "$tmp_file"; then
+
+        # If successful, verify tmp file exists and has content
+        if [ -s "$tmp_file" ]; then
+            mv "$tmp_file" "$container_file"
+            rm "${container_file}.bak"
+            echo "Format successful"
+        else
+            echo "Error: Formatted file is empty"
+            mv "${container_file}.bak" "$container_file"
+            exit 1
+        fi
+    else
+        echo "Error during formatting"
+        mv "${container_file}.bak" "$container_file"
+        [ -f "$tmp_file" ] && rm "$tmp_file"
+        exit 1
+    fi
+EOF
+      run_docker_compose "fsw bash -c \"$cmd\"" " -w $FSW_WDIR"
+    else
+      fprime_root="${2:-$SCRIPT_DIR/fprime}"  # Get the path provided or use current directory
+      fprime_root="${fprime_root/$SCRIPT_DIR/$FSW_WDIR}"
+      echo "Formatting from $fprime_root"
+      cmd="git diff --name-only --relative | fprime-util format --no-backup --stdin"
+      run_docker_compose "fsw bash -c \"$cmd\"" "-w $fprime_root"
+    fi
     ;;
 
   "build")

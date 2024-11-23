@@ -49,7 +49,7 @@ private:
                            Fw::Success &condition //!< Condition success/failure
   );
 
-  Drv::SendStatus drvSend_handler(FwIndexType, Fw::Buffer&);
+  Drv::SendStatus drvSend_handler(FwIndexType, Fw::Buffer &);
 
   // Commands
   void PING_cmdHandler(const FwOpcodeType opCode, const U32 cmdSeq);

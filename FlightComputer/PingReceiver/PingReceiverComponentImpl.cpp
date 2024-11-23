@@ -10,53 +10,41 @@
 //
 // ======================================================================
 
-
 #include <FlightComputer/PingReceiver/PingReceiverComponentImpl.hpp>
 #include <FpConfig.hpp>
 
 namespace FlightComputer {
 
-  // ----------------------------------------------------------------------
-  // Construction, initialization, and destruction
-  // ----------------------------------------------------------------------
+// ----------------------------------------------------------------------
+// Construction, initialization, and destruction
+// ----------------------------------------------------------------------
 
-  PingReceiverComponentImpl ::
-    PingReceiverComponentImpl(
-        const char *const compName
-    ) : PingReceiverComponentBase(compName), m_inhibitPings(false), m_pingsRecvd(0)
-  {
+PingReceiverComponentImpl ::PingReceiverComponentImpl(
+    const char *const compName)
+    : PingReceiverComponentBase(compName), m_inhibitPings(false),
+      m_pingsRecvd(0) {}
 
+PingReceiverComponentImpl ::~PingReceiverComponentImpl() {}
+
+// ----------------------------------------------------------------------
+// Handler implementations for user-defined typed input ports
+// ----------------------------------------------------------------------
+
+void PingReceiverComponentImpl ::PingIn_handler(const NATIVE_INT_TYPE portNum,
+                                                U32 key) {
+  // this->log_DIAGNOSTIC_PR_PingReceived(key);
+  this->tlmWrite_PR_NumPings(this->m_pingsRecvd++);
+  if (not this->m_inhibitPings) {
+    PingOut_out(0, key);
   }
+}
 
-  PingReceiverComponentImpl ::
-    ~PingReceiverComponentImpl()
-  {
-
-  }
-
-  // ----------------------------------------------------------------------
-  // Handler implementations for user-defined typed input ports
-  // ----------------------------------------------------------------------
-
-  void PingReceiverComponentImpl ::
-    PingIn_handler(
-        const NATIVE_INT_TYPE portNum,
-        U32 key
-    )
-  {
-    //this->log_DIAGNOSTIC_PR_PingReceived(key);
-    this->tlmWrite_PR_NumPings(this->m_pingsRecvd++);
-    if (not this->m_inhibitPings) {
-        PingOut_out(0,key);
-    }
-  }
-
-  void PingReceiverComponentImpl::PR_StopPings_cmdHandler(
-          FwOpcodeType opCode, /*!< The opcode*/
-          U32 cmdSeq /*!< The command sequence number*/
-      ) {
-      this->m_inhibitPings = true;
-      this->cmdResponse_out(opCode,cmdSeq,Fw::CmdResponse::OK);
-  }
+void PingReceiverComponentImpl::PR_StopPings_cmdHandler(
+    FwOpcodeType opCode, /*!< The opcode*/
+    U32 cmdSeq           /*!< The command sequence number*/
+) {
+  this->m_inhibitPings = true;
+  this->cmdResponse_out(opCode, cmdSeq, Fw::CmdResponse::OK);
+}
 
 } // end namespace FlightComputer
