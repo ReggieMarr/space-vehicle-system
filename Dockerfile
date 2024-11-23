@@ -7,7 +7,7 @@ ARG DEBIAN_FRONTEND=noninteractive
 # Install all necessary packages in one layer to reduce intermediate layers
 RUN apt-get update && \
     apt-get upgrade -y && \
-    apt-get install -y ssh sudo build-essential git cmake python3 python3-venv python3-pip python3-wheel \
+    apt-get install -y ssh clang-format sudo build-essential git cmake python3 python3-venv python3-pip python3-wheel \
     python3-dev python3-tk wget gdbserver openssh-server iputils-ping netcat libicu-dev rsync
 
 # Download, build and install Boost with static libraries
