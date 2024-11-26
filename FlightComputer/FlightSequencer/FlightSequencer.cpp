@@ -7,7 +7,6 @@
  * ***************************************************************************************************************************/
 
 #include "FlightSequencer.hpp"
-#include "Drv/DataTypes/DataBuffer.hpp"
 #include "FlightComputer/Common/Common.hpp"
 #include "FlightComputer/FlightSequencer/FlightSequencer_FlightSMStatesEnumAc.hpp"
 #include "FlightComputer/FlightSequencer/FppConstantsAc.hpp"
