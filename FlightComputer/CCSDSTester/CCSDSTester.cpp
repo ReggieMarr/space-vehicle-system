@@ -23,8 +23,94 @@
 #include "Svc/FramingProtocol/CCSDSProtocols/TMSpaceDataLink/ProtocolInterface.hpp"
 #include "Svc/FramingProtocol/CCSDSProtocols/TMSpaceDataLink/TransferFrame.hpp"
 #include "Utils/Types/CircularBuffer.hpp"
+#include <cstddef>
+#include <iomanip> // for std::hex and std::setfill
+#include <iostream>
 
 namespace FlightComputer {
+// Helper to serialize data into a ComBuffer
+static Fw::Buffer
+createSerializedBuffer(const FwPacketDescriptorType packetType,
+                       const std::array<U8, 7> &data,
+                       Fw::ComBuffer &comBuffer) {
+
+  comBuffer.resetSer();
+  comBuffer.serialize(packetType);
+  comBuffer.serialize(data.data(), data.size(), true);
+  return Fw::Buffer(comBuffer.getBuffAddr(), comBuffer.getBuffCapacity());
+}
+
+// Helper to send a message through ProtocolEntity
+static void sendMessage(TMSpaceDataLink::ProtocolEntity &protocolEntity,
+                        Fw::Buffer &messageBuffer, const U8 vcIdx) {
+
+  // Only one master channel supported
+  TMSpaceDataLink::PhysicalChannelParams_t params =
+      protocolEntity.m_params.physicalParams;
+  FW_ASSERT(params.numSubChannels == 1, params.subChannels.size());
+  constexpr FwSizeType masterChannelIdx = 0;
+  TMSpaceDataLink::MCID_t mcid = {
+      .SCID = params.subChannels.at(masterChannelIdx).spaceCraftId,
+      .TFVN = params.transferFrameVersion};
+  TMSpaceDataLink::GVCID_t gvcid = {.MCID = mcid,
+                                    .VCID =
+                                        params.subChannels.at(masterChannelIdx)
+                                            .subChannels.at(vcIdx)
+                                            .virtualChannelId};
+  U32 gvcidVal;
+  TMSpaceDataLink::GVCID_t::toVal(gvcid, gvcidVal);
+
+  // NOTE manually offsetting to data for now
+  FwSizeType messageSendSize =
+      params.subChannels.at(0).subChannels.at(vcIdx).VCA_SDULength;
+  std::string messageText(
+      reinterpret_cast<const char *>(messageBuffer.getData() +
+                                     sizeof(FwPacketDescriptorType)),
+      messageSendSize);
+  std::cout << "Sending: [" << messageText << "]" << std::endl;
+
+  protocolEntity.UserComIn_handler(messageBuffer, gvcidVal);
+}
+
+// Helper to generate and print a response
+// NOTE this is just some test code for now
+static void
+generateAndPrintResponse(TMSpaceDataLink::ProtocolEntity &protocolEntity,
+                         Fw::ComBuffer &comResponse, const U8 vcIdx) {
+
+  comResponse.resetSer();
+  comResponse.setBuffLen(TMSpaceDataLink::FPrimeTransferFrame::SERIALIZED_SIZE);
+  Fw::Buffer response(comResponse.getBuffAddr(), comResponse.getBuffCapacity());
+  protocolEntity.generateNextFrame(response);
+  TMSpaceDataLink::FPrimeTransferFrame frame;
+
+  Fw::SerializeBufferBase &serBuff = response.getSerializeRepr();
+  serBuff.setBuffLen(serBuff.getBuffCapacity());
+
+  frame.extract(serBuff);
+  TMSpaceDataLink::FPrimeDataField::DataField::FieldValue_t dataVal;
+  frame.dataField.get(dataVal);
+
+  // Print the response in hexadecimal format
+  std::cout << "Response for VCID Idx " << static_cast<int>(vcIdx) << ": ";
+
+  TMSpaceDataLink::PhysicalChannelParams_t params =
+      protocolEntity.m_params.physicalParams;
+  FwSizeType responseSize =
+      params.subChannels.at(0).subChannels.at(vcIdx).VCA_SDULength;
+  FW_ASSERT(responseSize <= dataVal.size());
+
+  std::string responseText(reinterpret_cast<const char *>(
+                               dataVal.data() + sizeof(FwPacketDescriptorType)),
+                           responseSize);
+  std::cout << "Received:[" << responseText << "]" << std::endl;
+
+  for (size_t i = 0; i < response.getSize(); ++i) {
+    std::cout << std::hex << std::uppercase << std::setfill('0') << std::setw(2)
+              << static_cast<int>(response.getData()[i]) << " ";
+  }
+  std::cout << std::endl;
+}
 
 // ----------------------------------------------------------------------
 // Component construction and destruction
@@ -138,17 +224,38 @@ void CCSDSTester::framerLoopbackPing() {
 }
 
 void CCSDSTester::protocolEntityLoopBackPing() {
-  TMSpaceDataLink::VirtualChannelParams_t virtualChannelParams = {
-      .virtualChannelId = 0,
-      .VCA_SDULength = 4,
-      .VC_FSHLength = 0,
-      .isVC_OCFPresent = false,
-  };
+  static constexpr FwSizeType MessageNum = NUM_VIRTUAL_CHANNELS;
+  static constexpr FwSizeType MessageSize =
+      7; // Enough to fit all, with padding for some
+  std::array<std::array<U8, MessageSize>, MessageNum> channelMessages = {{
+      {'B', 'O', 'N', 'J', 'O', 'U', 'R'}, // Channel 0: "BONJOUR"
+      {'S', 'A', 'L', 'U', 'T', 0, 0},  // Channel 1: "SALUT" (padded with 0s)
+      {0xF0, 0x9F, 0x8D, 0x81, 0, 0, 0} // Channel 2: Oh Canada (padded with 0s)
+  }};
+  std::array<TMSpaceDataLink::VirtualChannelParams_t, MessageNum> vcParams = {
+      {{
+           0,           // virtualChannelId = 0,
+           MessageSize, // VCA_SDULength = 7 (channelMessages max size),
+           0,           // VC_FSHLength = 0,
+           false,       // isVC_OCFPresent = false,
+       },
+       {
+           1,           // virtualChannelId = 1,
+           MessageSize, // VCA_SDULength = 7 (channelMessages max size),
+           0,           // VC_FSHLength = 0,
+           false,       // isVC_OCFPresent = false,
+       },
+       {
+           2,           // virtualChannelId = 2,
+           MessageSize, // VCA_SDULength = 7 (channelMessages max size),
+           0,           // VC_FSHLength = 0,
+           false,       // isVC_OCFPresent = false,
+       }}};
 
   TMSpaceDataLink::MasterChannelParams_t masterChannelParams = {
       .spaceCraftId = CCSDS_SCID,
-      .numSubChannels = 1,
-      .subChannels = {virtualChannelParams},
+      .numSubChannels = 3,
+      .subChannels = vcParams,
       .vcMuxScheme = VC_MUX_TYPE::VC_MUX_TIME_DIVSION,
       .MC_FSHLength = 0,
       .isMC_OCFPresent = false,
@@ -168,73 +275,34 @@ void CCSDSTester::protocolEntityLoopBackPing() {
       .physicalParams = physicalChannelParams,
   };
 
-  Fw::ComBuffer com;
-
-  U32 dfltMessage = 0x9944fead;
-  com.resetSer();
-  Fw::ComPacket::ComPacketType packetType =
-      Fw::ComPacket::ComPacketType::FW_PACKET_COMMAND;
-  com.serialize(packetType);
-  com.serialize(dfltMessage);
-  U32 gvcidVal;
-  TMSpaceDataLink::MCID_t mcid = {
-      .SCID = CCSDS_SCID,
-      .TFVN = 0x00,
-  };
-  TMSpaceDataLink::GVCID_t gvcidSrc = {
-      .MCID = mcid,
-      .VCID = 0,
-  };
-  TMSpaceDataLink::GVCID_t gvcidDst;
-  TMSpaceDataLink::GVCID_t::toVal(gvcidSrc, gvcidVal);
-  TMSpaceDataLink::GVCID_t::fromVal(gvcidDst, gvcidVal);
-  FW_ASSERT(gvcidSrc == gvcidDst);
-
-  Fw::Buffer buff(com.getBuffAddr(), com.getBuffCapacity());
   TMSpaceDataLink::ProtocolEntity protocolEntity(managedParams);
 
-  protocolEntity.UserComIn_handler(buff, gvcidVal);
-
-  Fw::ComBuffer secondMessage;
-
-  U32 otherDfltMessage = 0x9944fead;
-  secondMessage.resetSer();
-  Fw::ComPacket::ComPacketType otherPacketType =
-      Fw::ComPacket::ComPacketType::FW_PACKET_TELEM;
-  secondMessage.serialize(packetType);
-  secondMessage.serialize(otherDfltMessage);
-
-  TMSpaceDataLink::GVCID_t gvcidSecondary = {
-      .MCID = mcid,
-      .VCID = 1,
+  std::array<Fw::ComBuffer, MessageNum> comBuffers;
+  std::array<Fw::Buffer, MessageNum> plainBuffers;
+  std::array<FwPacketDescriptorType, MessageNum> packetTypeVals = {
+      Fw::ComPacket::ComPacketType::FW_PACKET_COMMAND,
+      Fw::ComPacket::ComPacketType::FW_PACKET_TELEM,
+      Fw::ComPacket::ComPacketType::FW_PACKET_PACKETIZED_TLM,
   };
-  U32 gvcidSecondaryVal;
-  TMSpaceDataLink::GVCID_t::toVal(gvcidSecondary, gvcidSecondaryVal);
 
-  Fw::Buffer secondBuff(secondMessage.getBuffAddr(),
-                        secondMessage.getBuffCapacity());
+  for (int i = 0; i < MessageNum; i++) {
+    plainBuffers.at(i) = createSerializedBuffer(
+        packetTypeVals.at(i), channelMessages.at(i), comBuffers.at(i));
+    Fw::Logger::log("Sending %d\n", i);
+    sendMessage(protocolEntity, plainBuffers.at(i), i);
+    Fw::Logger::log("Sent %d\n", i);
+  }
 
-  protocolEntity.UserComIn_handler(secondBuff, gvcidSecondaryVal);
-
-  // NOTE we should actually be doing this periodicially.
-  // has to be done after sending all the data with user com handler
   std::nullptr_t null_arg = nullptr;
+  // Transfer data after all messages have been sent
   protocolEntity.m_physicalChannel.m_subChannels.at(0).transfer(null_arg);
+  Fw::Logger::log("master tranfered \n");
 
-  // Get the first message
-  Fw::ComBuffer comResponse;
-  comResponse.resetSer();
-  comResponse.setBuffLen(TMSpaceDataLink::FPrimeTransferFrame::SERIALIZED_SIZE);
-  Fw::Buffer response(comResponse.getBuffAddr(), comResponse.getBuffCapacity());
-  protocolEntity.generateNextFrame(response);
-
-  // Get the second
-  Fw::ComBuffer secondComResponse;
-  comResponse.resetSer();
-  comResponse.setBuffLen(TMSpaceDataLink::FPrimeTransferFrame::SERIALIZED_SIZE);
-  Fw::Buffer secondResponse(secondComResponse.getBuffAddr(),
-                            secondComResponse.getBuffCapacity());
-  protocolEntity.generateNextFrame(response);
+  // Generate and handle responses
+  std::array<Fw::ComBuffer, MessageNum> responses;
+  for (int i = 0; i < MessageNum; i++) {
+    generateAndPrintResponse(protocolEntity, responses.at(i), i);
+  }
 }
 
 void CCSDSTester::PING_cmdHandler(const FwOpcodeType opCode, const U32 cmdSeq) {
