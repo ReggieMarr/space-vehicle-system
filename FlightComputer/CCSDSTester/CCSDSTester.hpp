@@ -52,6 +52,8 @@ private:
   Drv::SendStatus drvSend_handler(FwIndexType, Fw::Buffer &);
 
   // Commands
+  void framerLoopbackPing();
+  void protocolEntityLoopBackPing();
   void PING_cmdHandler(const FwOpcodeType opCode, const U32 cmdSeq);
   void MESSAGE_cmdHandler(const FwOpcodeType opCode, const U32 cmdSeq,
                           const Fw::CmdStringArg &str1);

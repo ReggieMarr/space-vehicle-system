@@ -18,6 +18,9 @@
 #include "Fw/Types/Serializable.hpp"
 #include "Svc/FrameAccumulator/FrameDetector.hpp"
 #include "Svc/FrameAccumulator/FrameDetector/CCSDSFrameDetector.hpp"
+#include "Svc/FramingProtocol/CCSDSProtocols/TMSpaceDataLink/Channels.hpp"
+#include "Svc/FramingProtocol/CCSDSProtocols/TMSpaceDataLink/ManagedParameters.hpp"
+#include "Svc/FramingProtocol/CCSDSProtocols/TMSpaceDataLink/ProtocolInterface.hpp"
 #include "Utils/Types/CircularBuffer.hpp"
 
 namespace FlightComputer {
@@ -114,7 +117,7 @@ void CCSDSTester::comStatusIn_handler(
   // }
 }
 
-void CCSDSTester::PING_cmdHandler(const FwOpcodeType opCode, const U32 cmdSeq) {
+void CCSDSTester::framerLoopbackPing() {
   if (!isConnected && isConnected_drvReady_OutputPort(0)) {
     this->drvReady_out(0);
     isConnected = true;
@@ -131,6 +134,69 @@ void CCSDSTester::PING_cmdHandler(const FwOpcodeType opCode, const U32 cmdSeq) {
   com.serialize(dfltMessage);
 
   PktSend_out(0, com, 0);
+}
+
+void CCSDSTester::protocolEntityLoopBackPing() {
+  TMSpaceDataLink::VirtualChannelParams_t virtualChannelParams = {
+      .virtualChannelId = 0,
+      .VCA_SDULength = 4,
+      .VC_FSHLength = 0,
+      .isVC_OCFPresent = false,
+  };
+
+  TMSpaceDataLink::MasterChannelParams_t masterChannelParams = {
+      .spaceCraftId = CCSDS_SCID,
+      .numSubChannels = 1,
+      .subChannels = {virtualChannelParams},
+      .vcMuxScheme = VC_MUX_TYPE::VC_MUX_TIME_DIVSION,
+      .MC_FSHLength = 0,
+      .isMC_OCFPresent = false,
+  };
+
+  TMSpaceDataLink::PhysicalChannelParams_t physicalChannelParams = {
+      .channelName = "Loopback Channel",
+      .transferFrameSize = 255,
+      .transferFrameVersion = 0x00,
+      .numSubChannels = 1,
+      .subChannels = {masterChannelParams},
+      .mcMuxScheme = MC_MUX_TYPE::MC_MUX_TIME_DIVSION,
+      .isFrameErrorControlEnabled = true,
+  };
+
+  TMSpaceDataLink::ManagedParameters_t managedParams = {
+      .physicalParams = physicalChannelParams,
+  };
+
+  Fw::ComBuffer com;
+
+  U32 dfltMessage = 0x9944fead;
+  com.resetSer();
+  Fw::ComPacket::ComPacketType packetType =
+      Fw::ComPacket::ComPacketType::FW_PACKET_COMMAND;
+  com.serialize(packetType);
+  com.serialize(dfltMessage);
+  U32 gvcidVal;
+  TMSpaceDataLink::MCID_t mcid = {
+      .SCID = CCSDS_SCID,
+      .TFVN = 0x00,
+  };
+  TMSpaceDataLink::GVCID_t gvcidSrc = {
+      .MCID = mcid,
+      .VCID = 0,
+  };
+  TMSpaceDataLink::GVCID_t gvcidDst;
+  TMSpaceDataLink::GVCID_t::toVal(gvcidSrc, gvcidVal);
+  TMSpaceDataLink::GVCID_t::fromVal(gvcidDst, gvcidVal);
+  FW_ASSERT(gvcidSrc == gvcidDst);
+
+  Fw::Buffer buff(com.getBuffAddr(), com.getBuffCapacity());
+  TMSpaceDataLink::ProtocolEntity protocolEntity(managedParams);
+  protocolEntity.UserComIn_handler(buff, gvcidVal);
+}
+
+void CCSDSTester::PING_cmdHandler(const FwOpcodeType opCode, const U32 cmdSeq) {
+
+  protocolEntityLoopBackPing();
 
   // cmdResponse_out(opCode, cmdSeq, Fw::CmdResponse::OK);
 }
