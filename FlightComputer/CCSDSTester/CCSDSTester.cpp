@@ -21,6 +21,7 @@
 #include "Svc/FramingProtocol/CCSDSProtocols/TMSpaceDataLink/Channels.hpp"
 #include "Svc/FramingProtocol/CCSDSProtocols/TMSpaceDataLink/ManagedParameters.hpp"
 #include "Svc/FramingProtocol/CCSDSProtocols/TMSpaceDataLink/ProtocolInterface.hpp"
+#include "Svc/FramingProtocol/CCSDSProtocols/TMSpaceDataLink/TransferFrame.hpp"
 #include "Utils/Types/CircularBuffer.hpp"
 
 namespace FlightComputer {
@@ -191,7 +192,49 @@ void CCSDSTester::protocolEntityLoopBackPing() {
 
   Fw::Buffer buff(com.getBuffAddr(), com.getBuffCapacity());
   TMSpaceDataLink::ProtocolEntity protocolEntity(managedParams);
+
   protocolEntity.UserComIn_handler(buff, gvcidVal);
+
+  Fw::ComBuffer secondMessage;
+
+  U32 otherDfltMessage = 0x9944fead;
+  secondMessage.resetSer();
+  Fw::ComPacket::ComPacketType otherPacketType =
+      Fw::ComPacket::ComPacketType::FW_PACKET_TELEM;
+  secondMessage.serialize(packetType);
+  secondMessage.serialize(otherDfltMessage);
+
+  TMSpaceDataLink::GVCID_t gvcidSecondary = {
+      .MCID = mcid,
+      .VCID = 1,
+  };
+  U32 gvcidSecondaryVal;
+  TMSpaceDataLink::GVCID_t::toVal(gvcidSecondary, gvcidSecondaryVal);
+
+  Fw::Buffer secondBuff(secondMessage.getBuffAddr(),
+                        secondMessage.getBuffCapacity());
+
+  protocolEntity.UserComIn_handler(secondBuff, gvcidSecondaryVal);
+
+  // NOTE we should actually be doing this periodicially.
+  // has to be done after sending all the data with user com handler
+  std::nullptr_t null_arg = nullptr;
+  protocolEntity.m_physicalChannel.m_subChannels.at(0).transfer(null_arg);
+
+  // Get the first message
+  Fw::ComBuffer comResponse;
+  comResponse.resetSer();
+  comResponse.setBuffLen(TMSpaceDataLink::FPrimeTransferFrame::SERIALIZED_SIZE);
+  Fw::Buffer response(comResponse.getBuffAddr(), comResponse.getBuffCapacity());
+  protocolEntity.generateNextFrame(response);
+
+  // Get the second
+  Fw::ComBuffer secondComResponse;
+  comResponse.resetSer();
+  comResponse.setBuffLen(TMSpaceDataLink::FPrimeTransferFrame::SERIALIZED_SIZE);
+  Fw::Buffer secondResponse(secondComResponse.getBuffAddr(),
+                            secondComResponse.getBuffCapacity());
+  protocolEntity.generateNextFrame(response);
 }
 
 void CCSDSTester::PING_cmdHandler(const FwOpcodeType opCode, const U32 cmdSeq) {
