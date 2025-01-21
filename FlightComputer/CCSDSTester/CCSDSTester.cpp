@@ -23,25 +23,17 @@
 #include "Svc/FramingProtocol/CCSDSProtocols/TMSpaceDataLink/ProtocolInterface.hpp"
 #include "Svc/FramingProtocol/CCSDSProtocols/TMSpaceDataLink/TransferFrame.hpp"
 #include "Utils/Types/CircularBuffer.hpp"
+#include <algorithm>
 #include <cstddef>
+#include <cstdio>
 #include <iomanip> // for std::hex and std::setfill
 #include <iostream>
+#include <string>
+#include <sstream>
 
 namespace FlightComputer {
-// Helper to serialize data into a ComBuffer
-static Fw::Buffer
-createSerializedBuffer(const FwPacketDescriptorType packetType,
-                       const std::array<U8, 7> &data,
-                       Fw::ComBuffer &comBuffer) {
-
-  comBuffer.resetSer();
-  comBuffer.serialize(packetType);
-  comBuffer.serialize(data.data(), data.size(), true);
-  return Fw::Buffer(comBuffer.getBuffAddr(), comBuffer.getBuffCapacity());
-}
-
 // Helper to send a message through ProtocolEntity
-static void sendMessage(TMSpaceDataLink::ProtocolEntity &protocolEntity,
+static void routeMessage(TMSpaceDataLink::ProtocolEntity &protocolEntity,
                         Fw::Buffer &messageBuffer, const U8 vcIdx) {
 
   // Only one master channel supported
@@ -74,8 +66,7 @@ static void sendMessage(TMSpaceDataLink::ProtocolEntity &protocolEntity,
 
 // Helper to generate and print a response
 // NOTE this is just some test code for now
-static void
-generateAndPrintResponse(TMSpaceDataLink::ProtocolEntity &protocolEntity,
+static void generateAndPrintResponse(TMSpaceDataLink::ProtocolEntity &protocolEntity,
                          Fw::ComBuffer &comResponse, const U8 vcIdx) {
 
   comResponse.resetSer();
@@ -112,12 +103,37 @@ generateAndPrintResponse(TMSpaceDataLink::ProtocolEntity &protocolEntity,
   std::cout << std::endl;
 }
 
+static std::string createJsonMessage(const loopbackMsgHeader_t& header,
+                                     const std::string& channelMessage) {
+    // Verify size constraint
+    char jsonCStr[MessageSize];
+
+    std::snprintf(jsonCStr, sizeof(jsonCStr)/sizeof(jsonCStr[0]),
+                  "{opCode: %u, cmdSeq: %u, testCnt: %u, pld: '%s'}",
+                  header.opCode, header.cmdSeq, header.testCnt, channelMessage.c_str());
+    std::string json(jsonCStr, sizeof(jsonCStr)/sizeof(jsonCStr[0]));
+    json.shrink_to_fit();
+
+    return json;
+}
+
+
 // ----------------------------------------------------------------------
 // Component construction and destruction
 // ----------------------------------------------------------------------
 
+// Helper to serialize data into a ComBuffer
+Fw::Buffer CCSDSTester::createSerializedBuffer(const FwPacketDescriptorType packetType,
+                                               const std::array<U8, MessageSize> &data,
+                                               Fw::ComBuffer &comBuffer) {
+  comBuffer.resetSer();
+  comBuffer.serialize(packetType);
+  comBuffer.serialize(data.data(), data.size(), true);
+  return Fw::Buffer(comBuffer.getBuffAddr(), comBuffer.getBuffCapacity());
+}
+
 CCSDSTester ::CCSDSTester(const char *const compName)
-    : CCSDSTesterComponentBase(compName) {
+  : CCSDSTesterComponentBase(compName) {
 
   if (isConnected_drvReady_OutputPort(0)) {
     this->drvReady_out(0);
@@ -204,112 +220,46 @@ void CCSDSTester::comStatusIn_handler(
   // }
 }
 
-void CCSDSTester::framerLoopbackPing() {
-  if (!isConnected && isConnected_drvReady_OutputPort(0)) {
-    this->drvReady_out(0);
-    isConnected = true;
-  } else {
-    Fw::Logger::log("CCSDS Tester Not Ready !!\n");
-  }
-  Fw::ComBuffer com;
-
-  U32 dfltMessage = 0x9944fead;
-  com.resetSer();
-  Fw::ComPacket::ComPacketType packetType =
-      Fw::ComPacket::ComPacketType::FW_PACKET_COMMAND;
-  com.serialize(packetType);
-  com.serialize(dfltMessage);
-
-  PktSend_out(0, com, 0);
-}
-
-void CCSDSTester::protocolEntityLoopBackPing() {
-  static constexpr FwSizeType MessageNum = NUM_VIRTUAL_CHANNELS;
-  static constexpr FwSizeType MessageSize =
-      7; // Enough to fit all, with padding for some
-  std::array<std::array<U8, MessageSize>, MessageNum> channelMessages = {{
-      {'B', 'O', 'N', 'J', 'O', 'U', 'R'}, // Channel 0: "BONJOUR"
-      {'S', 'A', 'L', 'U', 'T', 0, 0},  // Channel 1: "SALUT" (padded with 0s)
-      {0xF0, 0x9F, 0x8D, 0x81, 0, 0, 0} // Channel 2: Oh Canada (padded with 0s)
-  }};
-  std::array<TMSpaceDataLink::VirtualChannelParams_t, MessageNum> vcParams = {
-      {{
-           0,           // virtualChannelId = 0,
-           MessageSize, // VCA_SDULength = 7 (channelMessages max size),
-           0,           // VC_FSHLength = 0,
-           false,       // isVC_OCFPresent = false,
-       },
-       {
-           1,           // virtualChannelId = 1,
-           MessageSize, // VCA_SDULength = 7 (channelMessages max size),
-           0,           // VC_FSHLength = 0,
-           false,       // isVC_OCFPresent = false,
-       },
-       {
-           2,           // virtualChannelId = 2,
-           MessageSize, // VCA_SDULength = 7 (channelMessages max size),
-           0,           // VC_FSHLength = 0,
-           false,       // isVC_OCFPresent = false,
-       }}};
-
-  TMSpaceDataLink::MasterChannelParams_t masterChannelParams = {
-      .spaceCraftId = CCSDS_SCID,
-      .numSubChannels = 3,
-      .subChannels = vcParams,
-      .vcMuxScheme = VC_MUX_TYPE::VC_MUX_TIME_DIVSION,
-      .MC_FSHLength = 0,
-      .isMC_OCFPresent = false,
-  };
-
-  TMSpaceDataLink::PhysicalChannelParams_t physicalChannelParams = {
-      .channelName = "Loopback Channel",
-      .transferFrameSize = 255,
-      .transferFrameVersion = 0x00,
-      .numSubChannels = 1,
-      .subChannels = {masterChannelParams},
-      .mcMuxScheme = MC_MUX_TYPE::MC_MUX_TIME_DIVSION,
-      .isFrameErrorControlEnabled = true,
-  };
-
-  TMSpaceDataLink::ManagedParameters_t managedParams = {
-      .physicalParams = physicalChannelParams,
-  };
-
-  TMSpaceDataLink::ProtocolEntity protocolEntity(managedParams);
-
+void CCSDSTester::sendLoopbackMsg(loopbackMsgHeader_t &header) {
   std::array<Fw::ComBuffer, MessageNum> comBuffers;
   std::array<Fw::Buffer, MessageNum> plainBuffers;
+
   std::array<FwPacketDescriptorType, MessageNum> packetTypeVals = {
       Fw::ComPacket::ComPacketType::FW_PACKET_COMMAND,
       Fw::ComPacket::ComPacketType::FW_PACKET_TELEM,
       Fw::ComPacket::ComPacketType::FW_PACKET_PACKETIZED_TLM,
   };
 
+  TMSpaceDataLink::ProtocolEntity ProtocolItf(managedParams);
   for (int i = 0; i < MessageNum; i++) {
-    plainBuffers.at(i) = createSerializedBuffer(
-        packetTypeVals.at(i), channelMessages.at(i), comBuffers.at(i));
-    Fw::Logger::log("Sending %d\n", i);
-    sendMessage(protocolEntity, plainBuffers.at(i), i);
-    Fw::Logger::log("Sent %d\n", i);
+    std::string msg(channelMsgs.at(i).begin(), channelMsgs.at(i).end());
+    std::string msgJson(createJsonMessage(header, msg));
+    std::array<U8, MessageSize> msgJsonArr;
+    std::copy(msgJson.begin(), msgJson.end(), msgJsonArr.data());
+
+    // plainBuffers.at(i).set(0, plainBuffers.at(i).getSize());
+
+    plainBuffers.at(i) = createSerializedBuffer(packetTypeVals.at(i), msgJsonArr, comBuffers.at(i));
+    routeMessage(ProtocolItf, plainBuffers.at(i), i);
   }
 
   std::nullptr_t null_arg = nullptr;
   // Transfer data after all messages have been sent
-  protocolEntity.m_physicalChannel.m_subChannels.at(0).transfer(null_arg);
-  Fw::Logger::log("master tranfered \n");
+  ProtocolItf.m_physicalChannel.m_subChannels.at(0).transfer(null_arg);
 
   // Generate and handle responses
   std::array<Fw::ComBuffer, MessageNum> responses;
   for (int i = 0; i < MessageNum; i++) {
-    generateAndPrintResponse(protocolEntity, responses.at(i), i);
+    generateAndPrintResponse(ProtocolItf, responses.at(i), i);
   }
 }
 
 void CCSDSTester::PING_cmdHandler(const FwOpcodeType opCode, const U32 cmdSeq) {
 
-  protocolEntityLoopBackPing();
+  loopbackMsgHeader_t msgHeader{opCode, cmdSeq, this->msgCnt++};
+  sendLoopbackMsg(msgHeader);
 
-  // cmdResponse_out(opCode, cmdSeq, Fw::CmdResponse::OK);
+  cmdResponse_out(opCode, cmdSeq, Fw::CmdResponse::OK);
 }
 void CCSDSTester::MESSAGE_cmdHandler(const FwOpcodeType opCode,
                                      const U32 cmdSeq,
