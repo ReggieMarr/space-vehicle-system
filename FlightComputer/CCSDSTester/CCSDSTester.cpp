@@ -26,6 +26,7 @@
 #include <cstdio>
 #include <iomanip> // for std::hex and std::setfill
 #include <iostream>
+#include <iterator>
 #include <string>
 #include "CCSDSConfig.hpp"
 
@@ -106,19 +107,21 @@ void CCSDSTester::routeMessage(Fw::Buffer &messageBuffer, const U8 vcIdx) {
 
 // Helper to generate and print a response
 // NOTE this is just some test code for now
-void CCSDSTester::runPipeline(Fw::ComBuffer &comResponse, const U8 vcIdx) {
-  comResponse.resetSer();
-  comResponse.setBuffLen(TMSpaceDataLink::FPrimeTransferFrame::SERIALIZED_SIZE);
-  Fw::Buffer response(comResponse.getBuffAddr(), comResponse.getBuffCapacity());
-  this->m_protocolEntity.generateNextFrame(response);
+void CCSDSTester::runPipeline() {
+  for (NATIVE_UINT_TYPE vcIdx = 0; vcIdx < MessageNum; vcIdx++) {
+    this->m_pipelineBuffer.resetSer();
+    this->m_pipelineBuffer.setBuffLen(TMSpaceDataLink::FPrimeTransferFrame::SERIALIZED_SIZE);
 
-  TMSpaceDataLink::FPrimeTransferFrame frame;
+    Fw::Buffer response(this->m_pipelineBuffer.getBuffAddr(), this->m_pipelineBuffer.getBuffCapacity());
+    this->m_protocolEntity.generateNextFrame(response);
 
-  Fw::SerializeBufferBase &serBuff = response.getSerializeRepr();
-  serBuff.setBuffLen(serBuff.getBuffCapacity());
+    Fw::SerializeBufferBase &serBuff = response.getSerializeRepr();
+    serBuff.setBuffLen(serBuff.getBuffCapacity());
 
-  frame.extract(serBuff);
-  frame.dataField.print();
+    TMSpaceDataLink::FPrimeTransferFrame frame;
+    frame.extract(serBuff);
+    frame.dataField.print();
+  }
 }
 
 void CCSDSTester::seqCmdBuff_handler(NATIVE_INT_TYPE portNum,
@@ -196,6 +199,18 @@ void CCSDSTester::comStatusIn_handler(
   // }
 }
 
+void CCSDSTester::run_handler(
+      const NATIVE_INT_TYPE portNum,
+      NATIVE_UINT_TYPE context
+) {
+  // If we haven't enabled running the pipeline then return
+  if (!this->m_ShouldRunPipeline) {
+    return;
+  }
+
+  runPipeline();
+}
+
 void CCSDSTester::sendLoopbackMsg(loopbackMsgHeader_t &header) {
   std::array<Fw::ComBuffer, MessageNum> comBuffers;
   std::array<Fw::Buffer, MessageNum> plainBuffers;
@@ -222,11 +237,16 @@ void CCSDSTester::sendLoopbackMsg(loopbackMsgHeader_t &header) {
   // Transfer data after all messages have been sent
   this->m_protocolEntity.m_physicalChannel.m_subChannels.at(0).transfer(null_arg);
 
-  // Generate and handle responses
-  std::array<Fw::ComBuffer, MessageNum> responses;
-  for (int i = 0; i < MessageNum; i++) {
-    runPipeline(responses.at(i), i);
-  }
+  // // Generate and handle responses
+  // runPipeline();
+}
+
+void CCSDSTester::RUN_PIPELINE_cmdHandler(const FwOpcodeType opCode, const U32 cmdSeq) {
+  runPipeline();
+}
+
+void CCSDSTester::TOGGLE_RUN_PIPELINE_cmdHandler(const FwOpcodeType opCode, const U32 cmdSeq) {
+  this->m_ShouldRunPipeline = !this->m_ShouldRunPipeline;
 }
 
 void CCSDSTester::PING_cmdHandler(const FwOpcodeType opCode, const U32 cmdSeq) {
@@ -236,6 +256,7 @@ void CCSDSTester::PING_cmdHandler(const FwOpcodeType opCode, const U32 cmdSeq) {
 
   cmdResponse_out(opCode, cmdSeq, Fw::CmdResponse::OK);
 }
+
 void CCSDSTester::MESSAGE_cmdHandler(const FwOpcodeType opCode,
                                      const U32 cmdSeq,
                                      const Fw::CmdStringArg &str1) {

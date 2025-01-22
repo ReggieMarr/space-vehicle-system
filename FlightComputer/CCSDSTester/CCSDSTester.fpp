@@ -53,6 +53,9 @@ module FlightComputer {
     @ Buffer send in
     async input port bufferSendIn: Fw.BufferSend
 
+    @ Run port for filling the FT4232 interface's buffer with data from the queue after processing (encoding) with potential padding
+    async input port run: Svc.Sched
+
     @ Buffer send out
     output port bufferSendOut: Fw.BufferSend
 
@@ -86,6 +89,12 @@ module FlightComputer {
 
     @ Simple command received interface
     async command PING
+
+    @ Trigger running the pipeline once
+    async command RUN_PIPELINE
+
+    @ Toggle running the pipeline continuously
+    async command TOGGLE_RUN_PIPELINE
 
     @ Simple command received interface
     # async command LONG_MESSAGE(str1: string)

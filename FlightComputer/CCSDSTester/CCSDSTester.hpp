@@ -39,6 +39,9 @@ private:
   U32 m_MsgCnt = 0;
   bool m_IsConnected = false;
 
+  bool m_ShouldRunPipeline = false;
+  Fw::ComBuffer m_pipelineBuffer;
+
   void bufferSendIn_handler(const NATIVE_INT_TYPE portNum,
                             Fw::Buffer &fwBuffer);
   Fw::Buffer createSerializedBuffer(const FwPacketDescriptorType packetType,
@@ -46,7 +49,7 @@ private:
                                     Fw::ComBuffer &comBuffer);
   void sendLoopbackMsg(loopbackMsgHeader_t &header);
   void routeMessage(Fw::Buffer &messageBuffer, const U8 vcIdx);
-  void runPipeline(Fw::ComBuffer &comResponse, const U8 vcIdx);
+  void runPipeline();
 
   // Handler functions
   void seqCmdBuff_handler(NATIVE_INT_TYPE portNum, Fw::ComBuffer &data,
@@ -56,6 +59,11 @@ private:
   );
 
   Drv::SendStatus drvSend_handler(FwIndexType, Fw::Buffer &);
+  void run_handler(const NATIVE_INT_TYPE portNum, NATIVE_UINT_TYPE context);
+
+  // Command handlers
+  void TOGGLE_RUN_PIPELINE_cmdHandler(const FwOpcodeType opCode, const U32 cmdSeq);
+  void RUN_PIPELINE_cmdHandler(const FwOpcodeType opCode, const U32 cmdSeq);
   void PING_cmdHandler(const FwOpcodeType opCode, const U32 cmdSeq);
   void MESSAGE_cmdHandler(const FwOpcodeType opCode, const U32 cmdSeq,
                           const Fw::CmdStringArg &str1);
