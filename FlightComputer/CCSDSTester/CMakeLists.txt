@@ -13,6 +13,7 @@
 set(SOURCE_FILES
   "${CMAKE_CURRENT_LIST_DIR}/CCSDSTester.fpp"
   "${CMAKE_CURRENT_LIST_DIR}/CCSDSTester.cpp"
+  "${CMAKE_CURRENT_LIST_DIR}/CCSDSConfig.cpp"
 )
 
 # Uncomment and add any modules that this component depends on, else

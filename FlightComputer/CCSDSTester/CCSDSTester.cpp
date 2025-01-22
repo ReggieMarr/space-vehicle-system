@@ -7,7 +7,6 @@
 #include "FlightComputer/CCSDSTester/CCSDSTester.hpp"
 #include "Drv/ByteStreamDriverModel/RecvStatusEnumAc.hpp"
 #include "Drv/ByteStreamDriverModel/SendStatusEnumAc.hpp"
-#include "Drv/Ip/IpSocket.hpp"
 #include "FpConfig.h"
 #include "FpConfig.hpp"
 #include "Fw/Buffer/Buffer.hpp"
@@ -16,7 +15,6 @@
 #include "Fw/Logger/Logger.hpp"
 #include "Fw/Types/Assert.hpp"
 #include "Fw/Types/Serializable.hpp"
-#include "Svc/FrameAccumulator/FrameDetector.hpp"
 #include "Svc/FrameAccumulator/FrameDetector/CCSDSFrameDetector.hpp"
 #include "Svc/FramingProtocol/CCSDSProtocols/TMSpaceDataLink/Channels.hpp"
 #include "Svc/FramingProtocol/CCSDSProtocols/TMSpaceDataLink/ManagedParameters.hpp"
@@ -29,16 +27,58 @@
 #include <iomanip> // for std::hex and std::setfill
 #include <iostream>
 #include <string>
-#include <sstream>
+#include "CCSDSConfig.hpp"
 
 namespace FlightComputer {
 // Helper to send a message through ProtocolEntity
-static void routeMessage(TMSpaceDataLink::ProtocolEntity &protocolEntity,
-                        Fw::Buffer &messageBuffer, const U8 vcIdx) {
+
+static std::string createJsonMessage(const loopbackMsgHeader_t& header,
+                                     const std::string& channelMessage) {
+    // Verify size constraint
+    char jsonCStr[MessageSize];
+
+    std::snprintf(jsonCStr, sizeof(jsonCStr)/sizeof(jsonCStr[0]),
+                  "{opCode: %u, cmdSeq: %u, testCnt: %u, pld: '%s'}",
+                  header.opCode, header.cmdSeq, header.testCnt, channelMessage.c_str());
+    std::string json(jsonCStr, sizeof(jsonCStr)/sizeof(jsonCStr[0]));
+    json.shrink_to_fit();
+
+    return json;
+}
+
+
+// ----------------------------------------------------------------------
+// Component construction and destruction
+// ----------------------------------------------------------------------
+
+// Helper to serialize data into a ComBuffer
+CCSDSTester ::CCSDSTester(const char *const compName)
+: CCSDSTesterComponentBase(compName), m_protocolEntity(createProtocolEntity()) {
+
+  if (isConnected_drvReady_OutputPort(0)) {
+    this->drvReady_out(0);
+    this->m_IsConnected = true;
+  } else {
+    Fw::Logger::log("Not Ready");
+  }
+}
+
+CCSDSTester ::~CCSDSTester() {}
+
+Fw::Buffer CCSDSTester::createSerializedBuffer(const FwPacketDescriptorType packetType,
+                                               const std::array<U8, MessageSize> &data,
+                                               Fw::ComBuffer &comBuffer) {
+  comBuffer.resetSer();
+  comBuffer.serialize(packetType);
+  comBuffer.serialize(data.data(), data.size(), true);
+  return Fw::Buffer(comBuffer.getBuffAddr(), comBuffer.getBuffCapacity());
+}
+
+void CCSDSTester::routeMessage(Fw::Buffer &messageBuffer, const U8 vcIdx) {
 
   // Only one master channel supported
   TMSpaceDataLink::PhysicalChannelParams_t params =
-      protocolEntity.m_params.physicalParams;
+      this->m_protocolEntity.m_params.physicalParams;
   FW_ASSERT(params.numSubChannels == 1, params.subChannels.size());
   constexpr FwSizeType masterChannelIdx = 0;
   TMSpaceDataLink::MCID_t mcid = {
@@ -61,89 +101,25 @@ static void routeMessage(TMSpaceDataLink::ProtocolEntity &protocolEntity,
       messageSendSize);
   std::cout << "Sending: [" << messageText << "]" << std::endl;
 
-  protocolEntity.UserComIn_handler(messageBuffer, gvcidVal);
+  this->m_protocolEntity.UserComIn_handler(messageBuffer, gvcidVal);
 }
 
 // Helper to generate and print a response
 // NOTE this is just some test code for now
-static void generateAndPrintResponse(TMSpaceDataLink::ProtocolEntity &protocolEntity,
-                         Fw::ComBuffer &comResponse, const U8 vcIdx) {
-
+void CCSDSTester::runPipeline(Fw::ComBuffer &comResponse, const U8 vcIdx) {
   comResponse.resetSer();
   comResponse.setBuffLen(TMSpaceDataLink::FPrimeTransferFrame::SERIALIZED_SIZE);
   Fw::Buffer response(comResponse.getBuffAddr(), comResponse.getBuffCapacity());
-  protocolEntity.generateNextFrame(response);
+  this->m_protocolEntity.generateNextFrame(response);
+
   TMSpaceDataLink::FPrimeTransferFrame frame;
 
   Fw::SerializeBufferBase &serBuff = response.getSerializeRepr();
   serBuff.setBuffLen(serBuff.getBuffCapacity());
 
   frame.extract(serBuff);
-  TMSpaceDataLink::FPrimeDataField::DataField::FieldValue_t dataVal;
-  frame.dataField.get(dataVal);
-
-  // Print the response in hexadecimal format
-  std::cout << "Response for VCID Idx " << static_cast<int>(vcIdx) << ": ";
-
-  TMSpaceDataLink::PhysicalChannelParams_t params =
-      protocolEntity.m_params.physicalParams;
-  FwSizeType responseSize =
-      params.subChannels.at(0).subChannels.at(vcIdx).VCA_SDULength;
-  FW_ASSERT(responseSize <= dataVal.size());
-
-  std::string responseText(reinterpret_cast<const char *>(
-                               dataVal.data() + sizeof(FwPacketDescriptorType)),
-                           responseSize);
-  std::cout << "Received:[" << responseText << "]" << std::endl;
-
-  for (size_t i = 0; i < response.getSize(); ++i) {
-    std::cout << std::hex << std::uppercase << std::setfill('0') << std::setw(2)
-              << static_cast<int>(response.getData()[i]) << " ";
-  }
-  std::cout << std::endl;
+  frame.dataField.print();
 }
-
-static std::string createJsonMessage(const loopbackMsgHeader_t& header,
-                                     const std::string& channelMessage) {
-    // Verify size constraint
-    char jsonCStr[MessageSize];
-
-    std::snprintf(jsonCStr, sizeof(jsonCStr)/sizeof(jsonCStr[0]),
-                  "{opCode: %u, cmdSeq: %u, testCnt: %u, pld: '%s'}",
-                  header.opCode, header.cmdSeq, header.testCnt, channelMessage.c_str());
-    std::string json(jsonCStr, sizeof(jsonCStr)/sizeof(jsonCStr[0]));
-    json.shrink_to_fit();
-
-    return json;
-}
-
-
-// ----------------------------------------------------------------------
-// Component construction and destruction
-// ----------------------------------------------------------------------
-
-// Helper to serialize data into a ComBuffer
-Fw::Buffer CCSDSTester::createSerializedBuffer(const FwPacketDescriptorType packetType,
-                                               const std::array<U8, MessageSize> &data,
-                                               Fw::ComBuffer &comBuffer) {
-  comBuffer.resetSer();
-  comBuffer.serialize(packetType);
-  comBuffer.serialize(data.data(), data.size(), true);
-  return Fw::Buffer(comBuffer.getBuffAddr(), comBuffer.getBuffCapacity());
-}
-
-CCSDSTester ::CCSDSTester(const char *const compName)
-  : CCSDSTesterComponentBase(compName) {
-
-  if (isConnected_drvReady_OutputPort(0)) {
-    this->drvReady_out(0);
-    isConnected = true;
-  } else {
-    Fw::Logger::log("Not Ready");
-  }
-}
-
-CCSDSTester ::~CCSDSTester() {}
 
 void CCSDSTester::seqCmdBuff_handler(NATIVE_INT_TYPE portNum,
                                      Fw::ComBuffer &data, U32 context) {
@@ -230,9 +206,8 @@ void CCSDSTester::sendLoopbackMsg(loopbackMsgHeader_t &header) {
       Fw::ComPacket::ComPacketType::FW_PACKET_PACKETIZED_TLM,
   };
 
-  TMSpaceDataLink::ProtocolEntity ProtocolItf(managedParams);
   for (int i = 0; i < MessageNum; i++) {
-    std::string msg(channelMsgs.at(i).begin(), channelMsgs.at(i).end());
+    std::string msg(ChannelMsgs.at(i).begin(), ChannelMsgs.at(i).end());
     std::string msgJson(createJsonMessage(header, msg));
     std::array<U8, MessageSize> msgJsonArr;
     std::copy(msgJson.begin(), msgJson.end(), msgJsonArr.data());
@@ -240,23 +215,23 @@ void CCSDSTester::sendLoopbackMsg(loopbackMsgHeader_t &header) {
     // plainBuffers.at(i).set(0, plainBuffers.at(i).getSize());
 
     plainBuffers.at(i) = createSerializedBuffer(packetTypeVals.at(i), msgJsonArr, comBuffers.at(i));
-    routeMessage(ProtocolItf, plainBuffers.at(i), i);
+    routeMessage(plainBuffers.at(i), i);
   }
 
   std::nullptr_t null_arg = nullptr;
   // Transfer data after all messages have been sent
-  ProtocolItf.m_physicalChannel.m_subChannels.at(0).transfer(null_arg);
+  this->m_protocolEntity.m_physicalChannel.m_subChannels.at(0).transfer(null_arg);
 
   // Generate and handle responses
   std::array<Fw::ComBuffer, MessageNum> responses;
   for (int i = 0; i < MessageNum; i++) {
-    generateAndPrintResponse(ProtocolItf, responses.at(i), i);
+    runPipeline(responses.at(i), i);
   }
 }
 
 void CCSDSTester::PING_cmdHandler(const FwOpcodeType opCode, const U32 cmdSeq) {
 
-  loopbackMsgHeader_t msgHeader{opCode, cmdSeq, this->msgCnt++};
+  loopbackMsgHeader_t msgHeader{opCode, cmdSeq, this->m_MsgCnt++};
   sendLoopbackMsg(msgHeader);
 
   cmdResponse_out(opCode, cmdSeq, Fw::CmdResponse::OK);
@@ -264,9 +239,9 @@ void CCSDSTester::PING_cmdHandler(const FwOpcodeType opCode, const U32 cmdSeq) {
 void CCSDSTester::MESSAGE_cmdHandler(const FwOpcodeType opCode,
                                      const U32 cmdSeq,
                                      const Fw::CmdStringArg &str1) {
-  if (!isConnected && isConnected_drvReady_OutputPort(0)) {
+  if (!this->m_IsConnected && isConnected_drvReady_OutputPort(0)) {
     this->drvReady_out(0);
-    isConnected = true;
+    this->m_IsConnected = true;
   } else {
     Fw::Logger::log("Not Ready");
   }
