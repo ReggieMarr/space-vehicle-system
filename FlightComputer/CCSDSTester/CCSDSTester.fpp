@@ -97,9 +97,6 @@ module FlightComputer {
 
     @ Simple command received interface
     # async command LONG_MESSAGE(str1: string)
-    async command MESSAGE(
-                           str1: string size 50
-                         )
 
     constant MSG_PEEK_SIZE = 55
     constant MSG_WINDOW_SIZE = 3
@@ -121,7 +118,10 @@ module FlightComputer {
 
     telemetry sendTimeUs: U64
     telemetry pipelineStats: PipelineStats
-    # telemetry pipelineStats: PipelineStats update on change
+
+    async command MESSAGE(
+                           str1: string size 50
+                         )
 
   }
 

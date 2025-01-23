@@ -209,7 +209,7 @@ void CCSDSTester::run_handler(
       const NATIVE_INT_TYPE portNum,
       NATIVE_UINT_TYPE context
 ) {
-  this->tlmWrite_pipelineStats(this->m_pipelineStats);
+  // this->tlmWrite_pipelineStats(this->m_pipelineStats);
   // If we haven't enabled running the pipeline then return
   if (!this->m_ShouldRunPipeline) {
     return;
