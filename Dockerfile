@@ -11,7 +11,7 @@ RUN apt-get update && \
     python3-dev python3-tk wget gdbserver openssh-server iputils-ping netcat libicu-dev rsync
 
 # Download, build and install Boost with static libraries
-RUN wget -O boost.tar.gz https://boostorg.jfrog.io/artifactory/main/release/1.78.0/source/boost_1_78_0.tar.gz && \
+RUN wget -O boost.tar.gz https://pilotfiber.dl.sourceforge.net/project/boost/boost/1.78.0/boost_1_78_0.tar.gz?viasf=1 && \
     tar xzf boost.tar.gz && \
     mv boost_1_78_0 /opt/boost && \
     cd /opt/boost && \

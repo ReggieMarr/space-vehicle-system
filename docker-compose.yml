@@ -2,6 +2,11 @@ services:
   gds:
     stop_grace_period: 3s
     user: user
+    environment:
+      - HOST_UID=${HOST_UID:-1000}
+      - HOST_GID=${HOST_GID:-1000}
+      - TERM=xterm-256color
+      - FORCE_COLOR=1
     build:
       context: .
       dockerfile: Dockerfile
@@ -47,6 +52,10 @@ services:
         - FPRIME_CONFIG_DIR=$FSW_WDIR/FlightComputer/config
         - SSH_AUTH_SOCK=/ssh-agent
         - PATH=/home/user/STARS/autocoder:/home/user/.local/bin:${PATH} # TODO should check is necessary
+        - HOST_UID=${HOST_UID:-1000}
+        - HOST_GID=${HOST_GID:-1000}
+        - TERM=xterm-256color
+        - FORCE_COLOR=1
     volumes:
       - ${SCRIPT_DIR}:${FSW_WDIR}
     network_mode: host   # uses the host's network stack
