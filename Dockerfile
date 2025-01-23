@@ -72,7 +72,7 @@ ENV PATH="/home/user/.local/bin:${PATH}"
 # Install Python packages
 RUN pip install setuptools setuptools_scm wheel pip fprime-tools --upgrade && \
     pip install -r $FSW_WDIR/fprime/requirements.txt && \
-    pip install -e $FSW_WDIR/fprime-gds && \
+    # pip install -e $FSW_WDIR/fprime-gds && \
     pip install pytest debugpy pyinfra asyncio asyncssh gitpython python-dotenv --upgrade
 
 FROM fprime_src AS stars_base

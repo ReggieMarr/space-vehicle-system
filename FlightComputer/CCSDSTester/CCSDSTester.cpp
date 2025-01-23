@@ -7,14 +7,19 @@
 #include "FlightComputer/CCSDSTester/CCSDSTester.hpp"
 #include "Drv/ByteStreamDriverModel/RecvStatusEnumAc.hpp"
 #include "Drv/ByteStreamDriverModel/SendStatusEnumAc.hpp"
+#include "FlightComputer/CCSDSTester/CCSDSTester_MsgSummarySerializableAc.hpp"
+#include "FlightComputer/CCSDSTester/CCSDSTester_MsgWindowArrayAc.hpp"
+#include "FlightComputer/CCSDSTester/FppConstantsAc.hpp"
 #include "FpConfig.h"
 #include "FpConfig.hpp"
 #include "Fw/Buffer/Buffer.hpp"
 #include "Fw/Com/ComBuffer.hpp"
 #include "Fw/Com/ComPacket.hpp"
 #include "Fw/Logger/Logger.hpp"
+#include "Fw/Time/Time.hpp"
 #include "Fw/Types/Assert.hpp"
 #include "Fw/Types/Serializable.hpp"
+#include "Fw/Types/String.hpp"
 #include "Svc/FrameAccumulator/FrameDetector/CCSDSFrameDetector.hpp"
 #include "Svc/FramingProtocol/CCSDSProtocols/TMSpaceDataLink/Channels.hpp"
 #include "Svc/FramingProtocol/CCSDSProtocols/TMSpaceDataLink/ManagedParameters.hpp"
@@ -22,6 +27,7 @@
 #include "Svc/FramingProtocol/CCSDSProtocols/TMSpaceDataLink/TransferFrame.hpp"
 #include "Utils/Types/CircularBuffer.hpp"
 #include <algorithm>
+#include <array>
 #include <cstddef>
 #include <cstdio>
 #include <iomanip> // for std::hex and std::setfill
@@ -203,12 +209,70 @@ void CCSDSTester::run_handler(
       const NATIVE_INT_TYPE portNum,
       NATIVE_UINT_TYPE context
 ) {
+  this->tlmWrite_pipelineStats(this->m_pipelineStats);
   // If we haven't enabled running the pipeline then return
   if (!this->m_ShouldRunPipeline) {
     return;
   }
 
   runPipeline();
+}
+
+void CCSDSTester::updatePipelineStats(
+    std::array<CCSDSTester_MsgSummary, CCSDSTester_MSG_WINDOW_SIZE>& rawMsgWindow)
+{
+    CCSDSTester_MsgWindow currentMsgWindow = this->m_pipelineStats.getmsgWindow();
+    F64 totalBytes = 0;
+
+    // Process the message window
+    for (NATIVE_UINT_TYPE idx = 0; idx < CCSDSTester_MSG_WINDOW_SIZE; idx++) {
+        CCSDSTester_MsgSummary& msgSummary = rawMsgWindow.at(idx);
+        U64 lastSendTime;
+
+        // Get appropriate last send time
+        if (idx == 0) {
+            // For first message, use last message from previous window
+            if (currentMsgWindow[CCSDSTester_MSG_WINDOW_SIZE - 1].getsendTimeUs() != 0) {
+                lastSendTime = currentMsgWindow[CCSDSTester_MSG_WINDOW_SIZE - 1].getsendTimeUs();
+            } else {
+                // If no previous message, use current message time
+                lastSendTime = msgSummary.getsendTimeUs();
+            }
+        } else {
+            lastSendTime = rawMsgWindow.at(idx - 1).getsendTimeUs();
+        }
+
+        FwSizeType currentMsgSize = msgSummary.getmsgSize();
+
+        // Calculate instantaneous baud rate (bits per second)
+        U64 timeDiffUs = msgSummary.getsendTimeUs() - lastSendTime;
+        if (timeDiffUs > 0) {
+            F64 baudRate = (currentMsgSize * 8.0) / (static_cast<F64>(timeDiffUs) / 1000000.0);
+            this->m_baudRateWindow.at(idx) = baudRate;
+        }
+
+        // Update message window
+        currentMsgWindow[idx] = msgSummary;
+        totalBytes += currentMsgSize;
+    }
+
+    // Calculate average baud rate over the window
+    U64 windowTimeUs = rawMsgWindow.back().getsendTimeUs() - rawMsgWindow.front().getsendTimeUs();
+    F64 windowAvgBaudRate = 0.0;
+    if (windowTimeUs > 0) {
+        // Convert to bits per second
+        windowAvgBaudRate = (totalBytes * 8.0) / (static_cast<F64>(windowTimeUs) / 1000000.0);
+    }
+
+  // Update pipeline stats
+  this->m_pipelineStats.set(
+      this->m_pipelineStats.gettotalBytesSent() + totalBytes,
+      windowAvgBaudRate,
+      currentMsgWindow
+  );
+
+  this->tlmWrite_pipelineStats(this->m_pipelineStats);
+  Fw::Logger::log("Updated pipeline\n");
 }
 
 void CCSDSTester::sendLoopbackMsg(loopbackMsgHeader_t &header) {
@@ -221,24 +285,35 @@ void CCSDSTester::sendLoopbackMsg(loopbackMsgHeader_t &header) {
       Fw::ComPacket::ComPacketType::FW_PACKET_PACKETIZED_TLM,
   };
 
+  std::array<CCSDSTester_MsgSummary, CCSDSTester_MSG_WINDOW_SIZE> rawWindow;
+  CCSDSTester_MsgWindow msgWindow;
+
   for (int i = 0; i < MessageNum; i++) {
     std::string msg(ChannelMsgs.at(i).begin(), ChannelMsgs.at(i).end());
     std::string msgJson(createJsonMessage(header, msg));
     std::array<U8, MessageSize> msgJsonArr;
     std::copy(msgJson.begin(), msgJson.end(), msgJsonArr.data());
 
-    // plainBuffers.at(i).set(0, plainBuffers.at(i).getSize());
-
     plainBuffers.at(i) = createSerializedBuffer(packetTypeVals.at(i), msgJsonArr, comBuffers.at(i));
+    Fw::Time time(this->getTime());
+    this->tlmWrite_sendTimeUs(time.getUSeconds());
+
+    // m_pipelineStats.set(plainBuffers.at(i).getSize(),
+    //                     m_pipelineStats.gettotalBytesSent()+plainBuffers.at(i).getSize(),
+    //                     time.getUSeconds(),  wh);
+    // (std::string(msgJson.data(), CCSDSTester_MSG_WINDOW_SIZE));
+    CCSDSTester_MsgSummary msgSummary(time.getUSeconds(), header.cmdSeq, header.opCode,
+                                      MessageSize,
+                                      Fw::String(msgJson.data()));
+    rawWindow.at(i) = msgSummary;
     routeMessage(plainBuffers.at(i), i);
   }
+
+  updatePipelineStats(rawWindow);
 
   std::nullptr_t null_arg = nullptr;
   // Transfer data after all messages have been sent
   this->m_protocolEntity.m_physicalChannel.m_subChannels.at(0).transfer(null_arg);
-
-  // // Generate and handle responses
-  // runPipeline();
 }
 
 void CCSDSTester::RUN_PIPELINE_cmdHandler(const FwOpcodeType opCode, const U32 cmdSeq) {

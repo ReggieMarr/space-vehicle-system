@@ -12,14 +12,15 @@ services:
     image: $FSW_IMG
     command: "fprime-gds -n --ip-port=$UPLINK_TARGET_PORT --tts-port=$DOWNLINK_TARGET_PORT --dictionary ./dict/FlightComputerTopologyAppDictionary.xml"
     working_dir: ${DEPLOYMENT_ROOT}/build-artifacts/Linux/FlightComputer/
-    ports:
-      - $GDB_PORT:5555
-      - $DOWNLINK_TARGET_PORT:50050
-      - $GDS_WEB_GUI_PORT:5000
-      - $UPLINK_TARGET_PORT:50000
     volumes:
       - ${SCRIPT_DIR}:${FSW_WDIR}
-    network_mode: host   # uses the host's network stack
+    # not needed when using network_mode "host"
+    # ports:
+    #   - $GDB_PORT:5555
+    #   - $DOWNLINK_TARGET_PORT:50050
+    #   - $GDS_WEB_GUI_PORT:5000
+    #   - $UPLINK_TARGET_PORT:50000
+    network_mode: host
     healthcheck:
       test: ["CMD-SHELL", "pgrep fprime-gds"]
       interval: 2s
@@ -48,11 +49,12 @@ services:
         - PATH=/home/user/STARS/autocoder:/home/user/.local/bin:${PATH} # TODO should check is necessary
     volumes:
       - ${SCRIPT_DIR}:${FSW_WDIR}
-    ports:
-      - "${GDB_PORT}:${GDB_PORT}"
-      - $DOWNLINK_TARGET_PORT:50050
-      - $GDS_WEB_GUI_PORT:5000
     network_mode: host   # uses the host's network stack
+    # Not needed when using host network
+    # ports:
+    #   - "${GDB_PORT}:${GDB_PORT}"
+    #   - $DOWNLINK_TARGET_PORT:50050
+    #   - $GDS_WEB_GUI_PORT:5000
     security_opt:
       - seccomp:unconfined
     cap_add:

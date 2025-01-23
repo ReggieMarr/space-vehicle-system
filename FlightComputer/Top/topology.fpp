@@ -108,6 +108,7 @@ module FlightComputer {
       rateGroup1Comp.RateGroupMemberOut[1] -> blockDrv.Sched
       rateGroup1Comp.RateGroupMemberOut[2] -> commsBufferManager.schedIn
       rateGroup1Comp.RateGroupMemberOut[3] -> flightSequencer.run
+      rateGroup3Comp.RateGroupMemberOut[4] -> ccsdsNode.run
 
       # Rate group 2 (1/2Hz)
       rateGroupDriverComp.CycleOut[Ports_RateGroups.rateGroup2] -> rateGroup2Comp.CycleIn
@@ -118,7 +119,6 @@ module FlightComputer {
       rateGroupDriverComp.CycleOut[Ports_RateGroups.rateGroup3] -> rateGroup3Comp.CycleIn
       rateGroup3Comp.RateGroupMemberOut[0] -> systemResources.run
       rateGroup3Comp.RateGroupMemberOut[1] -> fileDownlink.Run
-      rateGroup3Comp.RateGroupMemberOut[2] -> ccsdsNode.run
     }
 
     # NOTE this is not really used atm and is here more to match closer to the Ref

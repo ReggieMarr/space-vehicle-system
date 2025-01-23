@@ -10,12 +10,16 @@
 #include "Drv/ByteStreamDriverModel/SendStatusEnumAc.hpp"
 #include "Drv/Ip/IpSocket.hpp"
 #include "FlightComputer/CCSDSTester/CCSDSTesterComponentAc.hpp"
+#include "FlightComputer/CCSDSTester/CCSDSTester_PipelineStatsSerializableAc.hpp"
+#include "FlightComputer/CCSDSTester/FppConstantsAc.hpp"
+#include "FpConfig.h"
 #include "Fw/Cmd/CmdString.hpp"
 #include "Fw/Logger/Logger.hpp"
 #include "Fw/Types/String.hpp"
 #include "Svc/FramingProtocol/CCSDSProtocols/TMSpaceDataLink/ManagedParameters.hpp"
 #include "Svc/FramingProtocol/CCSDSProtocols/TMSpaceDataLink/ProtocolInterface.hpp"
 #include "CCSDSConfig.hpp"
+#include <array>
 
 namespace FlightComputer {
 
@@ -40,7 +44,11 @@ private:
   bool m_IsConnected = false;
 
   bool m_ShouldRunPipeline = false;
+  static constexpr FwSizeType BAUD_RATE_WINDOW_SIZE = MessageNum * 3;
+  std::array<FwSizeType, BAUD_RATE_WINDOW_SIZE> m_baudRateWindow;
   Fw::ComBuffer m_pipelineBuffer;
+
+  CCSDSTester_PipelineStats m_pipelineStats;
 
   void bufferSendIn_handler(const NATIVE_INT_TYPE portNum,
                             Fw::Buffer &fwBuffer);
@@ -52,6 +60,7 @@ private:
   void runPipeline();
 
   // Handler functions
+  void updatePipelineStats(std::array<CCSDSTester_MsgSummary, CCSDSTester_MSG_WINDOW_SIZE> &rawWindow);
   void seqCmdBuff_handler(NATIVE_INT_TYPE portNum, Fw::ComBuffer &data,
                           U32 context);
   void comStatusIn_handler(FwIndexType portNum,   //!< The port number

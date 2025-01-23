@@ -2,7 +2,6 @@ module FlightComputer {
 
   @ Loopback CCSDS Testing component
   active component CCSDSTester {
-
     ###############################################################################
     # Standard AC Ports: Required for Channels, Events, Commands, and Parameters  #
     ###############################################################################
@@ -101,6 +100,28 @@ module FlightComputer {
     async command MESSAGE(
                            str1: string size 50
                          )
+
+    constant MSG_PEEK_SIZE = 55
+    constant MSG_WINDOW_SIZE = 3
+    struct MsgSummary {
+      sendTimeUs: U64
+      cmdSeq: U32
+      opCode: U32
+      msgSize: U32
+      msgPeek: string size MSG_PEEK_SIZE
+    }
+
+    array MsgWindow = [MSG_WINDOW_SIZE] MsgSummary
+
+    struct PipelineStats {
+      totalBytesSent: U32
+      avgBaudRate: F64
+      msgWindow: MsgWindow
+    }
+
+    telemetry sendTimeUs: U64
+    telemetry pipelineStats: PipelineStats
+    # telemetry pipelineStats: PipelineStats update on change
 
   }
 
