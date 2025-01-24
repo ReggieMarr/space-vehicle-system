@@ -126,9 +126,6 @@ exec_fsw() {
 
     # Handle clean restart of GDS if requested
     if [ "$CLEAN" -eq 1 ] && [ "$STANDALONE" -eq 0 ]; then
-        # Stop GDS container with a 3-second timeout (matching your compose file's grace period)
-        # stop_container "ground-control" 3
-
         if ! docker container stop -t 3 "ground-control"; then
             echo "Failed to stop container gds gracefully"
             return 1
