@@ -50,6 +50,7 @@ DAEMON=0
 DEBUG=0
 SET_THREAD_CTRL=0
 FORCE=0
+STANDALONE=0
 
 # Process flags
 for arg in "$@"; do
@@ -60,6 +61,7 @@ for arg in "$@"; do
     --as-host) AS_HOST=1 ;;
     --clean) CLEAN=1 ;;
     --host-thread-ctrl) SET_THREAD_CTRL=1 ;;
+    --host-thread-ctrl) STANDALONE=1 ;;
     --help) show_help; exit 0 ;;
   esac
 done
@@ -83,26 +85,60 @@ run_docker_compose() {
     local cmd="$1"
     # Always kill the container after executing the command
     # by default run the command with an interactive tty
-    local flags="--rm "
-    local flags+="${2:- -it}"
-    flags+=" --user $(id -u):$(id -g)"
+    local flags="--rm --user $(id -u):$(id -g) --remove-orphans "
 
-    [ "$DAEMON" -eq 1 ] && flags="-i -d"
+    if [ "${DAEMON}" -eq "1" ]; then
+      flags+="-id "
+    else
+      flags+="-it "
+    fi
+
+    echo $flags $2
+    # If flags were passed then add them
+    flags+=${2:-}
+
+    [ "$STANDALONE" -eq 1 ] && flags="--no-deps"
 
     exec_cmd "docker compose run $flags $cmd"
+}
+
+stop_container() {
+    local container_name="$1"
+    local timeout=${2:-10}  # default 10 seconds timeout
+
+    if docker container inspect "$container_name" >/dev/null 2>&1; then
+        echo "Stopping container $container_name (timeout: ${timeout}s)..."
+        if ! docker compose down -t "$timeout" "$container_name"; then
+            echo "Failed to stop container $container_name gracefully"
+            return 1
+        fi
+        echo "Container $container_name stopped successfully"
+    else
+        echo "Container $container_name is not running"
+    fi
 }
 
 exec_fsw() {
     local target="$1"
     local bin="${FSW_WDIR}/${target}/build-artifacts/Linux/${target}/bin/${target}"
     local cmd="$bin -a ${GDS_IP} -u ${UPLINK_TARGET_PORT} -d ${DOWNLINK_TARGET_PORT}"
-
     [ "$DEBUG" -eq 1 ] && cmd="gdbserver :${GDB_PORT} ${cmd}"
+
+    # Handle clean restart of GDS if requested
+    if [ "$CLEAN" -eq 1 ] && [ "$STANDALONE" -eq 0 ]; then
+        # Stop GDS container with a 3-second timeout (matching your compose file's grace period)
+        # stop_container "ground-control" 3
+
+        if ! docker container stop -t 3 "ground-control"; then
+            echo "Failed to stop container gds gracefully"
+            return 1
+        fi
+    fi
 
     if [ "${AS_HOST}" -eq "1" ]; then
         exec_cmd "$cmd"
     else
-      run_docker_compose "fsw bash -c \"${cmd}\""
+        run_docker_compose "fsw bash -c \"${cmd}\""
     fi
 }
 
@@ -231,16 +267,14 @@ EOF
         exec_fsw "$EXEC_TARGET"
       ;;
       "gds")
-        # check_port ${DOWNLINK_TARGET_PORT}
-        # check_port ${UPLINK_TARGET_PORT}
+        dict_path="${DICT_DIR}FlightComputerTopologyDictionary.json"
+        docker_flags="--name ground-control"
+        gds_flags=" --dictionary ${dict_path}"
+        gds_flags+=" --no-app"
+        gds_flags+=" --ip-address 127.0.0.1 --ip-port=${UPLINK_TARGET_PORT} --tts-port=${DOWNLINK_TARGET_PORT}"
 
-        DICT_PATH="${DICT_DIR}FlightComputerTopologyDictionary.json"
-        FLAGS+=" --dictionary ${DICT_PATH}"
-        FLAGS+=" --no-app"
-        FLAGS+=" --ip-address 127.0.0.1 --ip-port=${UPLINK_TARGET_PORT} --tts-port=${DOWNLINK_TARGET_PORT}"
-
-        GDS_CMD="fprime-gds ${FLAGS}"
-        run_docker_compose "fsw bash -c \"$GDS_CMD\""
+        cmd="fprime-gds ${gds_flags}"
+        run_docker_compose "gds bash -c \"$cmd\"" "${docker_flags}"
       ;;
       "test")
         run_docker_compose "gds pytest -s -v"

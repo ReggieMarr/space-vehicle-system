@@ -1,10 +1,9 @@
 services:
   gds:
+    stop_signal: SIGINT
     stop_grace_period: 3s
-    user: user
+    container_name: ground-control
     environment:
-      - HOST_UID=${HOST_UID:-1000}
-      - HOST_GID=${HOST_GID:-1000}
       - TERM=xterm-256color
       - FORCE_COLOR=1
     build:
@@ -14,17 +13,11 @@ services:
           - HOST_UID=${HOST_UID:-1000}
           - HOST_GID=${HOST_GID:-1000}
           - progress=plain
-    image: $FSW_IMG
+    image: ${FSW_IMG:-mbse}
     command: "fprime-gds -n --ip-port=$UPLINK_TARGET_PORT --tts-port=$DOWNLINK_TARGET_PORT --dictionary ./dict/FlightComputerTopologyAppDictionary.xml"
     working_dir: ${DEPLOYMENT_ROOT}/build-artifacts/Linux/FlightComputer/
     volumes:
-      - ${SCRIPT_DIR}:${FSW_WDIR}
-    # not needed when using network_mode "host"
-    # ports:
-    #   - $GDB_PORT:5555
-    #   - $DOWNLINK_TARGET_PORT:50050
-    #   - $GDS_WEB_GUI_PORT:5000
-    #   - $UPLINK_TARGET_PORT:50000
+      - ${SCRIPT_DIR:-.}:${FSW_WDIR}
     network_mode: host
     healthcheck:
       test: ["CMD-SHELL", "pgrep fprime-gds"]
@@ -34,7 +27,6 @@ services:
       start_period: 3s
   fsw:
     stop_grace_period: 1s
-    user: user
     build:
       context: .
       dockerfile: Dockerfile
@@ -42,28 +34,19 @@ services:
           - HOST_UID=${HOST_UID:-1000}
           - HOST_GID=${HOST_GID:-1000}
           - progress=plain
-    image: $FSW_IMG
+    image: ${FSW_IMG:-mbse}
     working_dir: ${DEPLOYMENT_ROOT}
     environment:
         - GEVENT_SUPPORT=True
-        - HOST_UID=${HOST_UID:-1000}
-        - HOST_GID=${HOST_GID:-1000}
         - UPLINK_TARGET_PORT=$UPLINK_TARGET_PORT
         - FPRIME_CONFIG_DIR=$FSW_WDIR/FlightComputer/config
         - SSH_AUTH_SOCK=/ssh-agent
         - PATH=/home/user/STARS/autocoder:/home/user/.local/bin:${PATH} # TODO should check is necessary
-        - HOST_UID=${HOST_UID:-1000}
-        - HOST_GID=${HOST_GID:-1000}
         - TERM=xterm-256color
         - FORCE_COLOR=1
     volumes:
-      - ${SCRIPT_DIR}:${FSW_WDIR}
+      - ${SCRIPT_DIR:-.}:${FSW_WDIR}
     network_mode: host   # uses the host's network stack
-    # Not needed when using host network
-    # ports:
-    #   - "${GDB_PORT}:${GDB_PORT}"
-    #   - $DOWNLINK_TARGET_PORT:50050
-    #   - $GDS_WEB_GUI_PORT:5000
     security_opt:
       - seccomp:unconfined
     cap_add:
@@ -78,7 +61,7 @@ services:
       timeout: 3s
       retries: 25
       start_period: 5s
-    # depends_on:
-    #   gds:
-    #     condition: service_healthy
-    #     restart: true
+    depends_on:
+      gds:
+        condition: service_healthy
+        restart: true
