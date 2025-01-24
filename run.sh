@@ -71,8 +71,8 @@ export FSW_IMG_TAG=${FSW_IMG_TAG:-fsw_$(git rev-parse --abbrev-ref HEAD | sed 's
 export FSW_IMG="$FSW_IMG_BASE:$FSW_IMG_TAG"
 
 exec_cmd() {
-    local cmd="$1"
-    echo "$cmd"
+    local cmd="${1}"
+    echo "Executing: $cmd"
     eval "$cmd"
     exit_code=$?
     if [ $exit_code -eq 1 ] || [ $exit_code -eq 2 ]; then
@@ -108,7 +108,7 @@ stop_container() {
 
     if docker container inspect "$container_name" >/dev/null 2>&1; then
         echo "Stopping container $container_name (timeout: ${timeout}s)..."
-        if ! docker compose down -t "$timeout" "$container_name"; then
+        if ! docker container stop -t "$timeout" "$container_name"; then
             echo "Failed to stop container $container_name gracefully"
             return 1
         fi
@@ -135,7 +135,7 @@ exec_fsw() {
     if [ "${AS_HOST}" -eq "1" ]; then
         exec_cmd "$cmd"
     else
-        run_docker_compose "fsw bash -c \"${cmd}\""
+        run_docker_compose "fsw bash -c \"${cmd}\"" "--name flight-computer"
     fi
 }
 
@@ -274,7 +274,21 @@ EOF
         run_docker_compose "gds bash -c \"$cmd\"" "${docker_flags}"
       ;;
       "test")
-        run_docker_compose "gds pytest -s -v"
+        #Ensure we've stopped the flight computer if it were already running
+        stop_container "flight-computer"
+        #Ensure the gds is reconnected (since we're going to connect to it)
+        #and start up the FlightComputer as a daemon
+        CLEAN=1
+        DAEMON=1
+        exec_fsw "FlightComputer"
+
+        #Run test command
+        test_cmd="docker exec -it -w /fsw/FlightComputer ground-control bash -c \"pytest -svx ./test/int/test_ccsds.py\""
+        echo "Running testcmd: $test_cmd"
+        exec_cmd "${test_cmd}"
+
+        #Clean up flight computer
+        stop_container "flight-computer"
       ;;
       *)
       echo "Invalid operation."
