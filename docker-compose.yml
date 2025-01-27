@@ -15,7 +15,7 @@ services:
           - HOST_GID=${HOST_GID:-1000}
           - progress=plain
     image: ${FSW_IMG:-mbse}
-    command: "fprime-gds -n --ip-port=$UPLINK_TARGET_PORT --tts-port=$DOWNLINK_TARGET_PORT --dictionary ./dict/FlightComputerTopologyAppDictionary.xml"
+    command: $DEFAULT_GDS_COMMAND
     working_dir: ${DEPLOYMENT_ROOT}
     volumes:
       - ${SCRIPT_DIR:-.}:${FSW_WDIR}

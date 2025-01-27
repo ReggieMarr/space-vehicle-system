@@ -116,14 +116,13 @@ USER user
 
 # This seems to be where fprime expects STARS to be
 RUN git clone https://github.com/JPLOpenSource/STARS.git /home/user/STARS
-RUN source /home/user/STARS/venv/bin/activate && \
-    pip install -r ${HOME}/STARS/requirements.txt && \
+RUN pip install -r ${HOME}/STARS/requirements.txt && \
     pip install anytree --upgrade
 
 # # CCSDS testing
 # RUN pip install spacepackets
 
-FROM fprime_src AS fprime_cleanup
+FROM stars_base AS fprime_cleanup
 USER root
 RUN apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 USER user

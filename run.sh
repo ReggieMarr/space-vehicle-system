@@ -121,41 +121,48 @@ try_docker_exec() {
     fi
 }
 
-stop_container() {
-    local container_name="$1"
-    local timeout=${2:-10}  # default 10 seconds timeout
+try_stop_container() {
+  local container_name="$1"
+  local timeout=${2:-10}  # default 10 seconds timeout
 
-    if docker container inspect "$container_name" >/dev/null 2>&1; then
-        echo "Stopping container $container_name (timeout: ${timeout}s)..."
-        if ! docker container stop -t "$timeout" "$container_name"; then
-            echo "Failed to stop container $container_name gracefully"
-            return 1
-        fi
-        echo "Container $container_name stopped successfully"
-    else
-        echo "Container $container_name is not running"
-    fi
+  if docker container inspect "$container_name" >/dev/null 2>&1; then
+      echo "Stopping container $container_name (timeout: ${timeout}s)..."
+      if ! docker container stop -t "$timeout" "$container_name"; then
+          echo "Failed to stop container $container_name gracefully"
+          return 1
+      fi
+      echo "Container $container_name stopped successfully"
+  else
+      echo "Container $container_name is not running"
+  fi
 }
 
 exec_fsw() {
-    local target="$1"
-    local bin="${FSW_WDIR}/${target}/build-artifacts/Linux/${target}/bin/${target}"
-    local cmd="$bin -a ${GDS_IP} -u ${UPLINK_TARGET_PORT} -d ${DOWNLINK_TARGET_PORT}"
-    [ "$DEBUG" -eq 1 ] && cmd="gdbserver :${GDB_PORT} ${cmd}"
+  local target="$1"
+  local bin="${FSW_WDIR}/${target}/build-artifacts/Linux/${target}/bin/${target}"
+  local cmd="$bin -a ${GDS_IP} -u ${UPLINK_TARGET_PORT} -d ${DOWNLINK_TARGET_PORT}"
+  [ "$DEBUG" -eq 1 ] && cmd="gdbserver :${GDB_PORT} ${cmd}"
 
-    # Handle clean restart of GDS if requested
-    if [ "$CLEAN" -eq 1 ] && [ "$STANDALONE" -eq 0 ]; then
-        if ! docker container stop -t 3 "fprime-gds"; then
-            echo "Failed to stop container gds gracefully"
-            return 1
-        fi
-    fi
+  [ "$CLEAN" -eq 1 ] && try_stop_container "fprime-gds"
 
-    if [ "${AS_HOST}" -eq "1" ]; then
-        exec_cmd "$cmd"
-    else
-        run_docker_compose "fsw" "bash -c \"${cmd}\"" "--name fprime-fsw"
-    fi
+  if [ "${AS_HOST}" -eq "1" ]; then
+      exec_cmd "$cmd"
+  else
+      run_docker_compose "fsw" "bash -c \"${cmd}\"" "--name fprime-fsw"
+  fi
+}
+
+exec_gds() {
+  dict_path="${DICT_DIR}FlightComputerTopologyDictionary.json"
+  docker_flags="--name fprime-gds"
+  gds_flags=" --dictionary ${dict_path}"
+  gds_flags+=" --no-app"
+  gds_flags+=" --ip-address 127.0.0.1 --ip-port=${UPLINK_TARGET_PORT} --tts-port=${DOWNLINK_TARGET_PORT}"
+
+  [ "$CLEAN" -eq 1 ] && try_stop_container "fprime-gds"
+
+  cmd="fprime-gds ${gds_flags}"
+  run_docker_compose "gds" "bash -c \"$cmd\"" "${docker_flags}"
 }
 
 case $1 in
@@ -252,10 +259,12 @@ EOF
 
   "build")
     BUILD_DIR="$DEPLOYMENT_ROOT/build-artifacts/Linux/FlightComputer"
-    BUILD_CMD="mkdir -p $BUILD_DIR && cd $BUILD_DIR && fprime-util build -j10 --all"
-    BUILD_CMD+=" fprime-util build -j10 --all"
+    [ "$CLEAN" -eq 1 ] && BUILD_CMD+="fprime-util purge --force && fprime-util generate --ninja && "
 
-    [ "$CLEAN" -eq 1 ] && BUILD_CMD="fprime-util purge --force && fprime-util generate --ninja && $BUILD_CMD"
+    BUILD_CMD+="mkdir -p $BUILD_DIR && cd $BUILD_DIR && "
+
+    BUILD_CMD+="fprime-util build -j10 --all"
+
     [ "$AS_HOST" -eq 1 ] && exec_cmd "$BUILD_CMD" || try_docker_exec "gds" "bash -c \"$BUILD_CMD\""
 
     MOD_DICT_CMD="sed -i \"s|${FSW_WDIR}|${SCRIPT_DIR}|g\" \"${SCRIPT_DIR}/FlightComputer/build-fprime-automatic-native/compile_commands.json\""
@@ -285,18 +294,11 @@ EOF
         exec_fsw "$EXEC_TARGET"
       ;;
       "gds")
-        dict_path="${DICT_DIR}FlightComputerTopologyDictionary.json"
-        docker_flags="--name fprime-gds"
-        gds_flags=" --dictionary ${dict_path}"
-        gds_flags+=" --no-app"
-        gds_flags+=" --ip-address 127.0.0.1 --ip-port=${UPLINK_TARGET_PORT} --tts-port=${DOWNLINK_TARGET_PORT}"
-
-        cmd="fprime-gds ${gds_flags}"
-        run_docker_compose "gds" "bash -c \"$cmd\"" "${docker_flags}"
+        exec_gds
       ;;
       "test")
         #Ensure we've stopped the flight computer if it were already running
-        stop_container "fprime-fsw"
+        try_stop_container "fprime-fsw"
         #Ensure the gds is reconnected (since we're going to connect to it)
         #and start up the FlightComputer as a daemon
         CLEAN=1
@@ -309,7 +311,7 @@ EOF
         exec_cmd "${test_cmd}"
 
         #Clean up flight computer
-        stop_container "fprime-fsw"
+        try_stop_container "fprime-fsw"
       ;;
       *)
       echo "Invalid operation."
