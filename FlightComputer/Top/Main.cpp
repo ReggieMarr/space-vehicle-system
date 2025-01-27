@@ -127,7 +127,7 @@ int main(int argc, char *argv[]) {
   (void)printf("Setting up sw runtime\n");
   FlightComputer::setupTopology(state);
   FlightComputer::startSimulatedCycle(
-      Fw::TimeInterval(1, 0)); // Program loop cycling rate groups at 1Hz
+      Fw::TimeInterval(0, 50000)); // Program loop cycling rate groups at 1Hz
   FlightComputer::teardownTopology(state);
 
   // Give time for threads to exit

@@ -106,7 +106,7 @@ void CCSDSTester::routeMessage(Fw::Buffer &messageBuffer, const U8 vcIdx) {
       reinterpret_cast<const char *>(messageBuffer.getData() +
                                      sizeof(FwPacketDescriptorType)),
       messageSendSize);
-  std::cout << "Sending: [" << messageText << "]" << std::endl;
+  Fw::Logger::log(messageText.c_str());
 
   this->m_protocolEntity.UserComIn_handler(messageBuffer, gvcidVal);
 }
@@ -209,7 +209,7 @@ void CCSDSTester::run_handler(
       const NATIVE_INT_TYPE portNum,
       NATIVE_UINT_TYPE context
 ) {
-  // this->tlmWrite_pipelineStats(this->m_pipelineStats);
+  this->tlmWrite_pipelineStats(this->m_pipelineStats);
   // If we haven't enabled running the pipeline then return
   if (!this->m_ShouldRunPipeline) {
     return;
@@ -221,55 +221,57 @@ void CCSDSTester::run_handler(
 void CCSDSTester::updatePipelineStats(
     std::array<CCSDSTester_MsgSummary, CCSDSTester_MSG_WINDOW_SIZE>& rawMsgWindow)
 {
-    CCSDSTester_MsgWindow currentMsgWindow = this->m_pipelineStats.getmsgWindow();
-    F64 totalBytes = 0;
+  // CCSDSTester_MsgWindow currentMsgWindow = this->m_pipelineStats.getmsgWindow();
+  F64 totalBytes = 0;
 
-    // Process the message window
-    for (NATIVE_UINT_TYPE idx = 0; idx < CCSDSTester_MSG_WINDOW_SIZE; idx++) {
-        CCSDSTester_MsgSummary& msgSummary = rawMsgWindow.at(idx);
-        U64 lastSendTime;
+  // Process the message window
+  for (NATIVE_UINT_TYPE idx = 0; idx < CCSDSTester_MSG_WINDOW_SIZE; idx++) {
+    CCSDSTester_MsgSummary& msgSummary = rawMsgWindow.at(idx);
+    U64 lastSendTime;
 
-        // Get appropriate last send time
-        if (idx == 0) {
-            // For first message, use last message from previous window
-            if (currentMsgWindow[CCSDSTester_MSG_WINDOW_SIZE - 1].getsendTimeUs() != 0) {
-                lastSendTime = currentMsgWindow[CCSDSTester_MSG_WINDOW_SIZE - 1].getsendTimeUs();
-            } else {
-                // If no previous message, use current message time
-                lastSendTime = msgSummary.getsendTimeUs();
-            }
-        } else {
-            lastSendTime = rawMsgWindow.at(idx - 1).getsendTimeUs();
-        }
-
-        FwSizeType currentMsgSize = msgSummary.getmsgSize();
-
-        // Calculate instantaneous baud rate (bits per second)
-        U64 timeDiffUs = msgSummary.getsendTimeUs() - lastSendTime;
-        if (timeDiffUs > 0) {
-            F64 baudRate = (currentMsgSize * 8.0) / (static_cast<F64>(timeDiffUs) / 1000000.0);
-            this->m_baudRateWindow.at(idx) = baudRate;
-        }
-
-        // Update message window
-        currentMsgWindow[idx] = msgSummary;
-        totalBytes += currentMsgSize;
+    // Get appropriate last send time
+    if (idx == 0) {
+        // For first message, use last message from previous window
+        // if (currentMsgWindow[CCSDSTester_MSG_WINDOW_SIZE - 1].getsendTimeUs() != 0) {
+        //     lastSendTime = currentMsgWindow[CCSDSTester_MSG_WINDOW_SIZE - 1].getsendTimeUs();
+        // } else {
+        //     // If no previous message, use current message time
+        //     lastSendTime = msgSummary.getsendTimeUs();
+        // }
+    } else {
+        lastSendTime = rawMsgWindow.at(idx - 1).getsendTimeUs();
     }
 
-    // Calculate average baud rate over the window
-    U64 windowTimeUs = rawMsgWindow.back().getsendTimeUs() - rawMsgWindow.front().getsendTimeUs();
-    F64 windowAvgBaudRate = 0.0;
-    if (windowTimeUs > 0) {
-        // Convert to bits per second
-        windowAvgBaudRate = (totalBytes * 8.0) / (static_cast<F64>(windowTimeUs) / 1000000.0);
+    FwSizeType currentMsgSize = msgSummary.getmsgSize();
+
+    // Calculate instantaneous baud rate (bits per second)
+    U64 timeDiffUs = msgSummary.getsendTimeUs() - lastSendTime;
+    if (timeDiffUs > 0) {
+        F64 baudRate = (currentMsgSize * 8.0) / (static_cast<F64>(timeDiffUs) / 1000000.0);
+        this->m_baudRateWindow.at(idx) = baudRate;
     }
+
+    // Update message window
+    // currentMsgWindow[idx] = msgSummary;
+    totalBytes += currentMsgSize;
+  }
+
+  // Calculate average baud rate over the window
+  U64 windowTimeUs = rawMsgWindow.back().getsendTimeUs() - rawMsgWindow.front().getsendTimeUs();
+  F64 windowAvgBaudRate = 0.0;
+  if (windowTimeUs > 0) {
+      // Convert to bits per second
+      windowAvgBaudRate = (totalBytes * 8.0) / (static_cast<F64>(windowTimeUs) / 1000000.0);
+  }
 
   // Update pipeline stats
   this->m_pipelineStats.set(
       this->m_pipelineStats.gettotalBytesSent() + totalBytes,
-      windowAvgBaudRate,
-      currentMsgWindow
+                            windowAvgBaudRate,
+                            rawMsgWindow.front().getmsgPeek()
+
   );
+  this->tlmWrite_msgPeek(rawMsgWindow.front().getmsgPeek());
 
   this->tlmWrite_pipelineStats(this->m_pipelineStats);
   Fw::Logger::log("Updated pipeline\n");
@@ -318,10 +320,13 @@ void CCSDSTester::sendLoopbackMsg(loopbackMsgHeader_t &header) {
 
 void CCSDSTester::RUN_PIPELINE_cmdHandler(const FwOpcodeType opCode, const U32 cmdSeq) {
   runPipeline();
+
+  cmdResponse_out(opCode, cmdSeq, Fw::CmdResponse::OK);
 }
 
 void CCSDSTester::TOGGLE_RUN_PIPELINE_cmdHandler(const FwOpcodeType opCode, const U32 cmdSeq) {
   this->m_ShouldRunPipeline = !this->m_ShouldRunPipeline;
+  cmdResponse_out(opCode, cmdSeq, Fw::CmdResponse::OK);
 }
 
 void CCSDSTester::PING_cmdHandler(const FwOpcodeType opCode, const U32 cmdSeq) {
@@ -354,7 +359,7 @@ void CCSDSTester::MESSAGE_cmdHandler(const FwOpcodeType opCode,
 
   // TODO add support for checking the port's connected
   PktSend_out(0, com, 0);
-  // cmdResponse_out(opCode, cmdSeq, Fw::CmdResponse::OK);
+  cmdResponse_out(opCode, cmdSeq, Fw::CmdResponse::OK);
 }
 
 Drv::SendStatus CCSDSTester::drvSend_handler(FwIndexType portNum,

@@ -33,6 +33,16 @@ RUN groupadd -g $HOST_GID user && \
 WORKDIR $FSW_WDIR
 RUN chown -R user:user $FSW_WDIR
 USER user
+ENV TZ='America/Montreal'
+
+RUN mkdir $HOME/ninja
+RUN wget -qO $HOME/ninja/ninja.gz https://github.com/ninja-build/ninja/releases/latest/download/ninja-linux.zip -nv
+RUN gunzip $HOME/ninja/ninja.gz
+RUN chmod a+x $HOME/ninja/ninja
+
+ENV PATH="$HOME/ninja/:$HOME/cmsis-toolbox-linux-amd64/bin:$PATH"
+
+ENV CMAKE_MAKE_PROGRAM=ninja
 
 FROM fprime_deps AS fprime_src
 
@@ -75,30 +85,30 @@ RUN pip install setuptools setuptools_scm wheel pip fprime-tools --upgrade && \
     # pip install -e $FSW_WDIR/fprime-gds && \
     pip install pytest debugpy pyinfra asyncio asyncssh gitpython python-dotenv --upgrade
 
-FROM fprime_src AS stars_base
+# FROM fprime_src AS stars_base
 
-ENV TZ='America/Montreal'
+# ENV TZ='America/Montreal'
 
-# Ubuntu packages
-USER root
-RUN echo $TZ > /etc/timezone && \
-    apt-get update && apt-get install -y --no-install-recommends tzdata && \
-    rm /etc/localtime && \
-    ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && \
-    dpkg-reconfigure -f noninteractive tzdata && \
-    dpkg --add-architecture i386 && apt-get update && \
-    apt-get install -y --no-install-recommends cmake wget gcc g++ less vim nano git curl make csh time python2 python3-pip python3-venv build-essential gcovr && \
-    apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
+# # Ubuntu packages
+# USER root
+# RUN echo $TZ > /etc/timezone && \
+#     apt-get update && apt-get install -y --no-install-recommends tzdata && \
+#     rm /etc/localtime && \
+#     ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && \
+#     dpkg-reconfigure -f noninteractive tzdata && \
+#     dpkg --add-architecture i386 && apt-get update && \
+#     apt-get install -y --no-install-recommends cmake wget gcc g++ less vim nano git curl make csh time python2 python3-pip python3-venv build-essential gcovr && \
+#     apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
-ENV PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:${PATH}"
-# Set library path
-ENV LD_LIBRARY_PATH=/usr/local/lib
+# ENV PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:${PATH}"
+# # Set library path
+# ENV LD_LIBRARY_PATH=/usr/local/lib
 
-USER user
+# USER user
 
-# This seems to be where fprime expects STARS to be
-RUN git clone https://github.com/JPLOpenSource/STARS.git ${HOME}/STARS
-RUN pip install -r ${HOME}/STARS/requirements.txt
+# # This seems to be where fprime expects STARS to be
+# RUN git clone https://github.com/JPLOpenSource/STARS.git ${HOME}/STARS
+# RUN pip install -r ${HOME}/STARS/requirements.txt
 
-# CCSDS testing
-RUN pip install spacepackets
+# # CCSDS testing
+# RUN pip install spacepackets

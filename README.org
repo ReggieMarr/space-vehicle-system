@@ -8,6 +8,7 @@ The project is containerized with Docker, ensuring compatibility across various 
 
 - [[https://git-scm.com/book/en/v2/Getting-Started-Installing-Git][Git]] (For cloning the repository)
 - [[https://docs.docker.com/engine/install/][Docker]] (For running the software)
+-
 
 [[https://docs.docker.com/engine/install/linux-postinstall/][Ensure Docker is configured to run without ~sudo~ in your environment]]
 *** Setting up the repo

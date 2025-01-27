@@ -2,7 +2,8 @@ services:
   gds:
     stop_signal: SIGINT
     stop_grace_period: 3s
-    container_name: ground-control
+    container_name: fprime-gds
+    user: user
     environment:
       - TERM=xterm-256color
       - FORCE_COLOR=1
@@ -27,7 +28,7 @@ services:
       start_period: 3s
   fsw:
     stop_grace_period: 1s
-    container_name: flight-computer
+    container_name: fprime-fsw
     build:
       context: .
       dockerfile: Dockerfile

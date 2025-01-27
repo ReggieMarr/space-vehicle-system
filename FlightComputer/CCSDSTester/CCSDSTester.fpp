@@ -113,11 +113,13 @@ module FlightComputer {
     struct PipelineStats {
       totalBytesSent: U32
       avgBaudRate: F64
-      msgWindow: MsgWindow
+      msgPeek: string size MSG_PEEK_SIZE
+      # msgWindow: MsgWindow
     }
 
-    telemetry sendTimeUs: U64
-    telemetry pipelineStats: PipelineStats
+    telemetry pipelineStats: PipelineStats update always
+    telemetry msgPeek: string size MSG_PEEK_SIZE update always
+    telemetry sendTimeUs: U64 update always
 
     async command MESSAGE(
                            str1: string size 50

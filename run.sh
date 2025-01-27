@@ -82,7 +82,8 @@ exec_cmd() {
 }
 
 run_docker_compose() {
-    local cmd="$1"
+    local service="$1"
+    local cmd="$2"
     # Always kill the container after executing the command
     # by default run the command with an interactive tty
     local flags="--rm --user $(id -u):$(id -g) --remove-orphans "
@@ -93,13 +94,31 @@ run_docker_compose() {
       flags+="-it "
     fi
 
-    echo $flags $2
     # If flags were passed then add them
-    flags+=${2:-}
+    flags+=${3:-}
 
     [ "$STANDALONE" -eq 1 ] && flags="--no-deps"
 
-    exec_cmd "docker compose run $flags $cmd"
+    exec_cmd "docker compose run $flags $service $cmd"
+}
+
+try_docker_exec() {
+    local service="$1"
+    local cmd="$2"
+    local container_name="fprime-${service}"  # assuming your container naming convention
+    local additional_flags="$3"
+
+    # Check if container is running
+    if docker container inspect "$container_name" >/dev/null 2>&1; then
+        echo "Container $container_name is running, using docker exec..."
+        if ! docker exec -it --user "$(id -u):$(id -g)" "$container_name" bash -c "$cmd"; then
+            echo "Docker exec failed, falling back to docker compose run..."
+            run_docker_compose "$service" "$additional_flags" "bash -c \"$cmd\""
+        fi
+    else
+        echo "Container $container_name is not running, using docker compose run..."
+        run_docker_compose "$service" "$cmd" "$additional_flags"
+    fi
 }
 
 stop_container() {
@@ -126,7 +145,7 @@ exec_fsw() {
 
     # Handle clean restart of GDS if requested
     if [ "$CLEAN" -eq 1 ] && [ "$STANDALONE" -eq 0 ]; then
-        if ! docker container stop -t 3 "ground-control"; then
+        if ! docker container stop -t 3 "fprime-gds"; then
             echo "Failed to stop container gds gracefully"
             return 1
         fi
@@ -135,7 +154,7 @@ exec_fsw() {
     if [ "${AS_HOST}" -eq "1" ]; then
         exec_cmd "$cmd"
     else
-        run_docker_compose "fsw bash -c \"${cmd}\"" "--name flight-computer"
+        run_docker_compose "fsw" "bash -c \"${cmd}\"" "--name fprime-fsw"
     fi
 }
 
@@ -221,21 +240,21 @@ case $1 in
         exit 1
     fi
 EOF
-      run_docker_compose "fsw bash -c \"$cmd\"" " -w $FSW_WDIR"
+      run_docker_compose "fsw" "bash -c \"$cmd\"" " -w $FSW_WDIR"
     else
       fprime_root="${2:-$SCRIPT_DIR/fprime}"  # Get the path provided or use current directory
       fprime_root="${fprime_root/$SCRIPT_DIR/$FSW_WDIR}"
       echo "Formatting from $fprime_root"
       cmd="git diff --name-only --relative | fprime-util format --no-backup --stdin"
-      run_docker_compose "fsw bash -c \"$cmd\"" "-w $fprime_root"
+      try_docker_exec "fsw" "bash -c \"$cmd\"" "-w $fprime_root"
     fi
     ;;
 
   "build")
     BUILD_CMD="fprime-util build -j10 --all"
 
-    [ "$CLEAN" -eq 1 ] && BUILD_CMD="fprime-util purge --force && fprime-util generate && $BUILD_CMD"
-    [ "$AS_HOST" -eq 1 ] && eval "$BUILD_CMD" || run_docker_compose "fsw bash -c \"$BUILD_CMD\""
+    [ "$CLEAN" -eq 1 ] && BUILD_CMD="fprime-util purge --force && fprime-util generate --ninja && $BUILD_CMD"
+    [ "$AS_HOST" -eq 1 ] && exec_cmd "$BUILD_CMD" || try_docker_exec "gds" "bash -c \"$BUILD_CMD\""
 
     MOD_DICT_CMD="sed -i \"s|${FSW_WDIR}|${SCRIPT_DIR}|g\" \"${SCRIPT_DIR}/FlightComputer/build-fprime-automatic-native/compile_commands.json\""
 
@@ -252,7 +271,7 @@ EOF
     SERVICE_NAME=${2:-}
     [ -z "$SERVICE_NAME" ] && { echo "Error: must specify container to inspect"; exit 1; }
     SERVICE_NAME+="${DEVICE_PORT:+-with-device}"
-    run_docker_compose "$SERVICE_NAME bash"
+    try_docker_exec "$SERVICE_NAME bash"
     ;;
 
   "exec")
@@ -265,17 +284,17 @@ EOF
       ;;
       "gds")
         dict_path="${DICT_DIR}FlightComputerTopologyDictionary.json"
-        docker_flags="--name ground-control"
+        docker_flags="--name fprime-gds"
         gds_flags=" --dictionary ${dict_path}"
         gds_flags+=" --no-app"
         gds_flags+=" --ip-address 127.0.0.1 --ip-port=${UPLINK_TARGET_PORT} --tts-port=${DOWNLINK_TARGET_PORT}"
 
         cmd="fprime-gds ${gds_flags}"
-        run_docker_compose "gds bash -c \"$cmd\"" "${docker_flags}"
+        run_docker_compose "gds" "bash -c \"$cmd\"" "${docker_flags}"
       ;;
       "test")
         #Ensure we've stopped the flight computer if it were already running
-        stop_container "flight-computer"
+        stop_container "fprime-fsw"
         #Ensure the gds is reconnected (since we're going to connect to it)
         #and start up the FlightComputer as a daemon
         CLEAN=1
@@ -283,12 +302,12 @@ EOF
         exec_fsw "FlightComputer"
 
         #Run test command
-        test_cmd="docker exec -it -w /fsw/FlightComputer ground-control bash -c \"pytest -svx ./test/int/test_ccsds.py\""
+        test_cmd="docker exec -it -w /fsw/FlightComputer fprime-gds bash -c \"pytest -svx ./test/int/test_ccsds.py\""
         echo "Running testcmd: $test_cmd"
         exec_cmd "${test_cmd}"
 
         #Clean up flight computer
-        stop_container "flight-computer"
+        stop_container "fprime-fsw"
       ;;
       *)
       echo "Invalid operation."
@@ -300,7 +319,7 @@ EOF
   "topology")
     # NOTE set working dir when we link this to a CI/CD
     CMD="fprime-util visualize -p ${DEPLOYMENT_ROOT}/Top -r ${DEPLOYMENT_ROOT}"
-    run_docker_compose "fsw bash -c \"$CMD\""
+    try_docker_exec "fsw" "bash -c \"$CMD\""
     ;;
 
   "teardown")
