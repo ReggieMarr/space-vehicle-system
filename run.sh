@@ -251,7 +251,9 @@ EOF
     ;;
 
   "build")
-    BUILD_CMD="fprime-util build -j10 --all"
+    BUILD_DIR="$DEPLOYMENT_ROOT/build-artifacts/Linux/FlightComputer"
+    BUILD_CMD="mkdir -p $BUILD_DIR && cd $BUILD_DIR && fprime-util build -j10 --all"
+    BUILD_CMD+=" fprime-util build -j10 --all"
 
     [ "$CLEAN" -eq 1 ] && BUILD_CMD="fprime-util purge --force && fprime-util generate --ninja && $BUILD_CMD"
     [ "$AS_HOST" -eq 1 ] && exec_cmd "$BUILD_CMD" || try_docker_exec "gds" "bash -c \"$BUILD_CMD\""

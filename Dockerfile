@@ -1,14 +1,13 @@
 # Upgrade to Ubuntu 24.04 as recommended
-FROM ubuntu:22.04 AS fprime_deps
-
-# Set non-interactive installation mode for apt packages
+FROM ubuntu:24.04 AS fprime_deps
 ARG DEBIAN_FRONTEND=noninteractive
+ENV TZ='America/Montreal'
 
 # Install all necessary packages in one layer to reduce intermediate layers
 RUN apt-get update && \
     apt-get upgrade -y && \
-    apt-get install -y ssh clang-format sudo build-essential git cmake python3 python3-venv python3-pip python3-wheel \
-    python3-dev python3-tk wget gdbserver openssh-server iputils-ping netcat libicu-dev rsync
+    apt-get install -y python3-dev python3 python3-full python3-pip python3-wheel python3-venv \
+    wget gdbserver libicu-dev rsync clang-format sudo build-essential git cmake
 
 # Download, build and install Boost with static libraries
 RUN wget -O boost.tar.gz https://pilotfiber.dl.sourceforge.net/project/boost/boost/1.78.0/boost_1_78_0.tar.gz?viasf=1 && \
@@ -26,8 +25,10 @@ ARG HOST_UID=1000
 ARG HOST_GID=1000
 ARG GIT_COMMIT
 ARG GIT_BRANCH
-RUN groupadd -g $HOST_GID user && \
-    useradd -u $HOST_UID -g $HOST_GID -m user && \
+RUN userdel -r ubuntu || true && \
+    getent group 1000 && getent group 1000 | cut -d: -f1 | xargs groupdel || true && \
+    groupadd -g ${HOST_GID} user && \
+    useradd -u ${HOST_UID} -g ${HOST_GID} -m user && \
     echo 'user ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers
 
 WORKDIR $FSW_WDIR
@@ -35,12 +36,12 @@ RUN chown -R user:user $FSW_WDIR
 USER user
 ENV TZ='America/Montreal'
 
-RUN mkdir $HOME/ninja
-RUN wget -qO $HOME/ninja/ninja.gz https://github.com/ninja-build/ninja/releases/latest/download/ninja-linux.zip -nv
-RUN gunzip $HOME/ninja/ninja.gz
-RUN chmod a+x $HOME/ninja/ninja
+RUN mkdir /home/user/ninja
+RUN wget -qO /home/user/ninja/ninja.gz https://github.com/ninja-build/ninja/releases/latest/download/ninja-linux.zip -nv
+RUN gunzip /home/user/ninja/ninja.gz
+RUN chmod a+x /home/user/ninja/ninja
 
-ENV PATH="$HOME/ninja/:$HOME/cmsis-toolbox-linux-amd64/bin:$PATH"
+ENV PATH="/home/user/ninja/:$HOME/cmsis-toolbox-linux-amd64/bin:$PATH"
 
 ENV CMAKE_MAKE_PROGRAM=ninja
 
@@ -78,18 +79,26 @@ RUN git submodule update --init --recursive --depth 1 --recommend-shallow
 ENV FPRIME_FRAMEWORK_PATH=$FSW_WDIR/fprime
 
 # Setup environment
-ENV PATH="/home/user/.local/bin:${PATH}"
+ENV VIRTUAL_ENV=/home/user/venv
+RUN python3 -m venv $VIRTUAL_ENV
+ENV PATH="/home/user/.local/bin:$VIRTUAL_ENV/bin:$PATH"
+
+# Activate virtual environment in various shell initialization files
+RUN echo "source $VIRTUAL_ENV/bin/activate" >> ~/.bashrc && \
+    echo "source $VIRTUAL_ENV/bin/activate" >> ~/.profile
+
+# Upgrade pip in virtual environment
+RUN pip install --upgrade pip
+
 # Install Python packages
 RUN pip install setuptools setuptools_scm wheel pip fprime-tools --upgrade && \
     pip install -r $FSW_WDIR/fprime/requirements.txt && \
     # pip install -e $FSW_WDIR/fprime-gds && \
     pip install pytest debugpy pyinfra asyncio asyncssh gitpython python-dotenv --upgrade
 
-# FROM fprime_src AS stars_base
+FROM fprime_src AS stars_base
 
-# ENV TZ='America/Montreal'
-
-# # Ubuntu packages
+# Ubuntu packages
 # USER root
 # RUN echo $TZ > /etc/timezone && \
 #     apt-get update && apt-get install -y --no-install-recommends tzdata && \
@@ -101,14 +110,20 @@ RUN pip install setuptools setuptools_scm wheel pip fprime-tools --upgrade && \
 #     apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
 # ENV PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:${PATH}"
-# # Set library path
 # ENV LD_LIBRARY_PATH=/usr/local/lib
 
-# USER user
+USER user
 
-# # This seems to be where fprime expects STARS to be
-# RUN git clone https://github.com/JPLOpenSource/STARS.git ${HOME}/STARS
-# RUN pip install -r ${HOME}/STARS/requirements.txt
+# This seems to be where fprime expects STARS to be
+RUN git clone https://github.com/JPLOpenSource/STARS.git /home/user/STARS
+RUN source /home/user/STARS/venv/bin/activate && \
+    pip install -r ${HOME}/STARS/requirements.txt && \
+    pip install anytree --upgrade
 
 # # CCSDS testing
 # RUN pip install spacepackets
+
+FROM fprime_src AS fprime_cleanup
+USER root
+RUN apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
+USER user

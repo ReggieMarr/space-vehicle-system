@@ -16,7 +16,7 @@ services:
           - progress=plain
     image: ${FSW_IMG:-mbse}
     command: "fprime-gds -n --ip-port=$UPLINK_TARGET_PORT --tts-port=$DOWNLINK_TARGET_PORT --dictionary ./dict/FlightComputerTopologyAppDictionary.xml"
-    working_dir: ${DEPLOYMENT_ROOT}/build-artifacts/Linux/FlightComputer/
+    working_dir: ${DEPLOYMENT_ROOT}
     volumes:
       - ${SCRIPT_DIR:-.}:${FSW_WDIR}
     network_mode: host
