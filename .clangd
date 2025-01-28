@@ -1,3 +1,3 @@
 CompileFlags:
-  CompilationDatabase: "./FlightComputer/build-fprime-automatic-native"
+  CompilationDatabase: /home/reggiemarr/Projects/MBSE_FSW/fprime/build-fprime-automatic-native-ut/
   Compiler: c++

@@ -106,18 +106,15 @@ try_docker_exec() {
     local service="$1"
     local cmd="$2"
     local container_name="fprime-${service}"  # assuming your container naming convention
-    local additional_flags="$3"
+    local flags="${3:-t}"
 
     # Check if container is running
     if docker container inspect "$container_name" >/dev/null 2>&1; then
         echo "Container $container_name is running, using docker exec..."
-        if ! docker exec -it --user "$(id -u):$(id -g)" "$container_name" bash -c "$cmd"; then
-            echo "Docker exec failed, falling back to docker compose run..."
-            run_docker_compose "$service" "$additional_flags" "bash -c \"$cmd\""
-        fi
+        exec_cmd "docker exec $flags $container_name $cmd"
     else
         echo "Container $container_name is not running, using docker compose run..."
-        run_docker_compose "$service" "$cmd" "$additional_flags"
+        run_docker_compose "$service" "$cmd" "$flags"
     fi
 }
 
@@ -165,6 +162,101 @@ exec_gds() {
   run_docker_compose "gds" "bash -c \"$cmd\"" "${docker_flags}"
 }
 
+exec_it_test() {
+  #Ensure we've stopped the flight computer if it were already running
+  try_stop_container "fprime-fsw"
+  #Ensure the gds is reconnected (since we're going to connect to it)
+  #and start up the FlightComputer as a daemon
+  CLEAN=1
+  DAEMON=1
+  exec_fsw "FlightComputer"
+
+  #Run test command
+  it_target="bash -c \"$1\""
+  test_cmd="docker exec -it -w /fsw/FlightComputer fprime-gds $it_target"
+  exec_cmd "${test_cmd}"
+
+  #Clean up flight computer
+  try_stop_container "fprime-fsw"
+}
+
+build_docker() {
+  if ! git diff-index --quiet HEAD --; then
+      read -p "You have unstaged changes. Continue? (y/n) " -n 1 -r
+      echo
+      [[ $REPLY =~ ^[Yy]$ ]] || { echo "Build cancelled."; exit 1; }
+  fi
+
+  # Fetch from remote to ensure we have latest refs
+  git fetch -q origin
+
+  # Get current commit hash
+  CURRENT_COMMIT=$(git rev-parse HEAD)
+
+  # Check if current commit exists in any remote branch
+  if ! git branch -r --contains "$CURRENT_COMMIT" | grep -q "origin/"; then
+      read -p "Current commit not found in remote repository. Continue? (y/n) " -n 1 -r
+      echo
+      [[ $REPLY =~ ^[Yy]$ ]] || { echo "Build cancelled."; exit 1; }
+  fi
+
+  CMD="docker compose --progress=plain --env-file=${SCRIPT_DIR}/.env build fsw"
+  [ "$CLEAN" -eq 1 ] && CMD+=" --no-cache"
+  CMD+=" --build-arg GIT_COMMIT=$(git rev-parse HEAD) --build-arg GIT_BRANCH=$(git rev-parse --abbrev-ref HEAD)"
+  exec_cmd "$CMD"
+}
+
+update_build_env() {
+  build_json_path=$1
+  clangd_cmd="sed -i \"s|CompilationDatabase: .*|CompilationDatabase: \"${build_json_path}\"|\" .clangd"
+  exec_cmd "$clangd_cmd"
+
+  mod_dict_cmd="sed -i \"s|${FSW_WDIR}|${SCRIPT_DIR}|g\" \"${build_json_path}/compile_commands.json\""
+
+  exec_cmd "$mod_dict_cmd"
+}
+
+build_fsw() {
+    build_dir="$SCRIPT_DIR/FlightComputer/build-fprime-automatic-native"
+    build_cmd=""
+
+    # Check if build directory doesn't exist or CLEAN flag is set
+    if [ ! -d "$build_dir" ] || [ "$CLEAN" -eq 1 ]; then
+        build_cmd+="fprime-util generate -f --ninja && "
+    fi
+
+    build_cmd+="cd $build_dir && "
+    build_cmd+="fprime-util build -j10 --all"
+
+    [ "$AS_HOST" -eq 1 ] && exec_cmd "$build_cmd" || try_docker_exec "gds" "bash -c \"$build_cmd\""
+    update_build_env "${SCRIPT_DIR}/FlightComputer/build-fprime-automatic-native/"
+
+    if [ "${SET_THREAD_CTRL}" -eq "1" ]; then
+        echo 'Setting thread control for non-sudo host execution'
+        THREAD_CMD="sudo setcap \"cap_sys_nice+ep\" ${SCRIPT_DIR}/FlightComputer/build-artifacts/Linux/FlightComputer/bin/FlightComputer"
+        exec_cmd "$THREAD_CMD"
+    fi
+}
+
+exec_ut_test() {
+  build_dir="$SCRIPT_DIR/FlightComputer/build-fprime-automatic-native-ut"
+  build_cmd=""
+  # Check if build directory doesn't exist or CLEAN flag is set
+  if [ ! -d "$build_dir" ] || [ "$CLEAN" -eq 1 ]; then
+      build_cmd+="fprime-util generate -f --ninja && "
+  fi
+
+  ut_target="${1:-.}"
+  # add --coverage to get information about coverage
+
+  gtest_flags="--rerun-failed -output-on-failure"
+  build_cmd+="fprime-util check -r $DEPLOYMENT_ROOT -p $ut_target --pass-through $gtest_flags"
+
+  try_docker_exec "gds" "bash -c \"$build_cmd\"" "-w $DEPLOYMENT_ROOT"
+
+  update_build_env "${SCRIPT_DIR}/fprime/build-fprime-automatic-native-ut/"
+}
+
 case $1 in
   "sync")
     exec_cmd "docker push $FSW_IMG"
@@ -176,32 +268,6 @@ case $1 in
     PULL_CMD+=" && git submodule sync && git submodule update --init --recursive"
 
     exec_cmd "$PULL_CMD"
-    ;;
-
-  "docker-build")
-    if ! git diff-index --quiet HEAD --; then
-        read -p "You have unstaged changes. Continue? (y/n) " -n 1 -r
-        echo
-        [[ $REPLY =~ ^[Yy]$ ]] || { echo "Build cancelled."; exit 1; }
-    fi
-
-    # Fetch from remote to ensure we have latest refs
-    git fetch -q origin
-
-    # Get current commit hash
-    CURRENT_COMMIT=$(git rev-parse HEAD)
-
-    # Check if current commit exists in any remote branch
-    if ! git branch -r --contains "$CURRENT_COMMIT" | grep -q "origin/"; then
-        read -p "Current commit not found in remote repository. Continue? (y/n) " -n 1 -r
-        echo
-        [[ $REPLY =~ ^[Yy]$ ]] || { echo "Build cancelled."; exit 1; }
-    fi
-
-    CMD="docker compose --progress=plain --env-file=${SCRIPT_DIR}/.env build fsw"
-    [ "$CLEAN" -eq 1 ] && CMD+=" --no-cache"
-    CMD+=" --build-arg GIT_COMMIT=$(git rev-parse HEAD) --build-arg GIT_BRANCH=$(git rev-parse --abbrev-ref HEAD)"
-    exec_cmd "$CMD"
     ;;
 
   "format")
@@ -247,35 +313,32 @@ case $1 in
         exit 1
     fi
 EOF
-      run_docker_compose "fsw" "bash -c \"$cmd\"" " -w $FSW_WDIR"
+      try_docker_exec "gds" "bash -c \"$cmd\"" " -w $FSW_WDIR"
     else
       fprime_root="${2:-$SCRIPT_DIR/fprime}"  # Get the path provided or use current directory
       fprime_root="${fprime_root/$SCRIPT_DIR/$FSW_WDIR}"
       echo "Formatting from $fprime_root"
       cmd="git diff --name-only --relative | fprime-util format --no-backup --stdin"
-      try_docker_exec "fsw" "bash -c \"$cmd\"" "-w $fprime_root"
+      try_docker_exec "gds" "bash -c \"$cmd\"" "-w $fprime_root"
     fi
     ;;
 
   "build")
-    BUILD_DIR="$DEPLOYMENT_ROOT/build-artifacts/Linux/FlightComputer"
-    [ "$CLEAN" -eq 1 ] && BUILD_CMD+="fprime-util purge --force && fprime-util generate --ninja && "
+    build_target=${2:-}
+    [ -z "$build_target" ] && { echo "Error: must specify target to exec"; exit 1; }
 
-    BUILD_CMD+="mkdir -p $BUILD_DIR && cd $BUILD_DIR && "
-
-    BUILD_CMD+="fprime-util build -j10 --all"
-
-    [ "$AS_HOST" -eq 1 ] && exec_cmd "$BUILD_CMD" || try_docker_exec "gds" "bash -c \"$BUILD_CMD\""
-
-    MOD_DICT_CMD="sed -i \"s|${FSW_WDIR}|${SCRIPT_DIR}|g\" \"${SCRIPT_DIR}/FlightComputer/build-fprime-automatic-native/compile_commands.json\""
-
-    exec_cmd "$MOD_DICT_CMD"
-
-    if [ "${SET_THREAD_CTRL}" -eq "1" ]; then
-        echo 'Setting thread control for non-sudo host execution'
-        THREAD_CMD="sudo setcap \"cap_sys_nice+ep\" ${SCRIPT_DIR}/FlightComputer/build-artifacts/Linux/FlightComputer/bin/FlightComputer"
-        exec_cmd "$THREAD_CMD"
-    fi
+    case $build_target in
+      "fsw")
+        build_fsw
+      ;;
+      "docker")
+        build_docker
+      ;;
+      *)
+      echo "Invalid operation."
+      exit 1
+      ;;
+    esac
     ;;
 
   "inspect")
@@ -286,32 +349,33 @@ EOF
     ;;
 
   "exec")
-    EXEC_TARGET=${2:-}
-    [ -z "$EXEC_TARGET" ] && { echo "Error: must specify target to exec"; exit 1; }
+    exec_target=${2:-}
+    [ -z "$exec_target" ] && { echo "Error: must specify target to exec"; exit 1; }
 
-    case $EXEC_TARGET in
+    case $exec_target in
       "FlightComputer")
-        exec_fsw "$EXEC_TARGET"
+        exec_fsw "$exec_target"
       ;;
       "gds")
         exec_gds
       ;;
-      "test")
-        #Ensure we've stopped the flight computer if it were already running
-        try_stop_container "fprime-fsw"
-        #Ensure the gds is reconnected (since we're going to connect to it)
-        #and start up the FlightComputer as a daemon
-        CLEAN=1
-        DAEMON=1
-        exec_fsw "FlightComputer"
+      *)
+      echo "Invalid operation."
+      exit 1
+      ;;
+    esac
+    ;;
 
-        #Run test command
-        test_cmd="docker exec -it -w /fsw/FlightComputer fprime-gds bash -c \"pytest -svx ./test/int/test_ccsds.py\""
-        echo "Running testcmd: $test_cmd"
-        exec_cmd "${test_cmd}"
+  "test")
+    build_target=${2:-}
+    [ -z "$build_target" ] && { echo "Error: must specify target to exec"; exit 1; }
 
-        #Clean up flight computer
-        try_stop_container "fprime-fsw"
+    case $build_target in
+      "it-ccsds")
+        exec_it_test "pytest -svx ./test/int/test_ccsds.py"
+      ;;
+      "ut-ccsds")
+        exec_ut_test "/fsw/fprime/Svc/FramingProtocol"
       ;;
       *)
       echo "Invalid operation."
