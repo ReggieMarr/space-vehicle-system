@@ -106,7 +106,7 @@ try_docker_exec() {
     local service="$1"
     local cmd="$2"
     local container_name="fprime-${service}"  # assuming your container naming convention
-    local flags="${3:-t}"
+    local flags="${3:--t}"
 
     # Check if container is running
     if docker container inspect "$container_name" >/dev/null 2>&1; then
@@ -345,7 +345,7 @@ EOF
     SERVICE_NAME=${2:-}
     [ -z "$SERVICE_NAME" ] && { echo "Error: must specify container to inspect"; exit 1; }
     SERVICE_NAME+="${DEVICE_PORT:+-with-device}"
-    try_docker_exec "$SERVICE_NAME bash"
+    try_docker_exec $SERVICE_NAME "bash" "-it"
     ;;
 
   "exec")

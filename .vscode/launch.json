@@ -196,6 +196,29 @@
                     "ignoreFailures": true
                 }
             ]
+        },
+        {
+            "name": "Launch FramingProtocol ut",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/FlightComputer/build-fprime-automatic-native-ut/bin/Linux/Svc_FramingProtocol_ut_exe",
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "gdb",
+            "miDebuggerPath": "/usr/bin/gdb",
+            "useExtendedRemote": true,
+            "sourceFileMap": {
+                "/fsw/": "${workspaceFolder}"
+            },
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ]
         }
     ]
 }
