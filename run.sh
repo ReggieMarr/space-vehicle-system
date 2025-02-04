@@ -29,6 +29,7 @@ Options:
   --as-host            Run as host
   --clean              Clean build
   --host-thread-ctl    Set thread control for running without sudo (this itself requires sudo)
+  --standalone         Run the command without starting any implied dependencies
   --help               Show this help message
 Commands:
   docker-build         Build the Docker image
@@ -61,7 +62,7 @@ for arg in "$@"; do
     --as-host) AS_HOST=1 ;;
     --clean) CLEAN=1 ;;
     --host-thread-ctrl) SET_THREAD_CTRL=1 ;;
-    --host-thread-ctrl) STANDALONE=1 ;;
+    --standalone) STANDALONE=1 ;;
     --help) show_help; exit 0 ;;
   esac
 done
@@ -91,7 +92,7 @@ run_docker_compose() {
     if [ "${DAEMON}" -eq "1" ]; then
       flags+="-id "
     else
-      flags+="-it "
+      flags+="-t "
     fi
 
     # If flags were passed then add them
@@ -250,7 +251,7 @@ exec_ut_test() {
   # add --coverage to get information about coverage
 
   gtest_flags="--rerun-failed -output-on-failure"
-  build_cmd+="fprime-util check -r $DEPLOYMENT_ROOT -p $ut_target --pass-through $gtest_flags"
+  build_cmd+="fprime-util check -r $DEPLOYMENT_ROOT -p $ut_target"
 
   try_docker_exec "gds" "bash -c \"$build_cmd\"" "-w $DEPLOYMENT_ROOT"
 
