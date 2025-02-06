@@ -226,6 +226,7 @@ build_fsw() {
         build_cmd+="fprime-util generate -f --ninja && "
     fi
 
+    build_dir="/fsw/FlightComputer/build-fprime-automatic-native"
     build_cmd+="cd $build_dir && "
     build_cmd+="fprime-util build -j10 --all"
 
