@@ -139,7 +139,7 @@ exec_fsw() {
   local target="$1"
   local bin="${FSW_WDIR}/${target}/build-artifacts/Linux/${target}/bin/${target}"
   local cmd="$bin -a ${GDS_IP} -u ${UPLINK_TARGET_PORT} -d ${DOWNLINK_TARGET_PORT}"
-  [ "$DEBUG" -eq 1 ] && cmd="gdbserver :${GDB_PORT} ${cmd}"
+  [ "$DEBUG" -eq 1 ] && cmd="gdbserver --once :${GDB_PORT} ${cmd}"
 
   [ "$CLEAN" -eq 1 ] && try_stop_container "fprime-gds"
 
@@ -346,7 +346,7 @@ EOF
   "inspect")
     SERVICE_NAME=${2:-}
     [ -z "$SERVICE_NAME" ] && { echo "Error: must specify container to inspect"; exit 1; }
-    SERVICE_NAME+="${DEVICE_PORT:+-with-device}"
+    # SERVICE_NAME+="${DEVICE_PORT:+-with-device}"
     try_docker_exec $SERVICE_NAME "bash" "-it"
     ;;
 
